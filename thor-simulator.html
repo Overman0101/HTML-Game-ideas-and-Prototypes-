@@ -1,0 +1,1922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thor: Storm Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Uncial+Antiqua&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#070b16; --iron:#8d95a3; --bolt:#cfeaff; --spark:#6db6ff; --ember:#e2a94b;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--night);overflow:hidden;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#d5deea}
+canvas{position:fixed;inset:0;display:block}
+
+#flash{position:fixed;inset:0;background:#cfe6ff;opacity:0;pointer-events:none;z-index:2}
+#hurt{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:2;
+  background:radial-gradient(ellipse at center,rgba(120,0,0,0) 45%,rgba(150,10,10,.65) 100%)}
+
+#hud{position:fixed;inset:0;pointer-events:none;z-index:3}
+#cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid rgba(207,234,255,.75);
+  border-radius:50%;box-shadow:0 0 6px rgba(0,0,0,.7);transition:opacity .15s,transform .15s}
+#cross::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;background:#fff;border-radius:50%}
+#cross.away{opacity:.45;transform:scale(.7)}
+.corner{position:absolute;bottom:22px;display:grid;gap:7px;font-size:13px;color:#b8c7dc;text-shadow:0 1px 3px #000}
+#left{left:24px}
+#right{right:24px;text-align:right;justify-items:end}
+.bar{width:190px;height:6px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;transform-origin:left center}
+#hpBar{background:#d2584a}
+#ltBar{background:var(--spark)}
+#beamBar{background:#cfeaff;transition:opacity .2s}
+#score{position:absolute;top:20px;right:24px;font-size:15px;color:#b8c7dc;text-shadow:0 1px 3px #000}
+#score b{font-size:22px;color:var(--bolt);font-weight:600;margin-right:4px}
+#toast{position:absolute;left:50%;bottom:76px;transform:translateX(-50%);padding:9px 16px;border-radius:6px;
+  background:rgba(7,11,22,.8);color:var(--bolt);font-size:14px;opacity:0;transition:opacity .3s;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+#whirl{position:absolute;left:50%;top:calc(50% + 34px);transform:translateX(-50%);display:grid;justify-items:center;gap:6px;
+  font-size:13px;color:var(--bolt);text-shadow:0 1px 3px #000;white-space:nowrap}
+#whirl[hidden]{display:none}
+#prompt{position:absolute;left:50%;top:calc(50% + 74px);transform:translateX(-50%);padding:6px 12px;border-radius:6px;
+  background:rgba(7,11,22,.72);color:var(--bolt);font-size:14px;text-shadow:0 1px 3px #000}
+#prompt[hidden]{display:none}
+#whirl .bar{width:120px}
+#whirlBar{background:var(--ember)}
+
+#overlay{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:24px;
+  background:radial-gradient(ellipse at 50% 25%,rgba(20,30,54,.72),rgba(4,7,14,.95))}
+#overlay[hidden]{display:none}
+.sheet{width:100%;max-width:560px}
+h1{font-family:'Uncial Antiqua','Palatino Linotype',Georgia,serif;font-weight:400;font-size:clamp(40px,8vw,70px);
+  line-height:1.02;margin:0 0 12px;color:var(--bolt);text-shadow:0 0 30px rgba(109,182,255,.5)}
+.lede{margin:0 0 26px;color:#9fb0c8;font-size:17px;line-height:1.5}
+.keys{display:grid;grid-template-columns:max-content 1fr;gap:11px 20px;align-items:center;margin:0 0 22px}
+.keys dt{display:flex;gap:6px;flex-wrap:wrap;margin:0}
+.keys dd{margin:0;color:#d5deea;font-size:15px}
+kbd{font:600 12.5px/1 system-ui,sans-serif;padding:5px 8px;border:1px solid rgba(141,149,163,.55);border-radius:4px;
+  background:rgba(255,255,255,.06);color:var(--bolt)}
+.tip{margin:0 0 28px;color:#8396b0;font-size:14px;line-height:1.55;max-width:50ch}
+#go{font:600 16px system-ui,sans-serif;padding:13px 26px;border:0;border-radius:4px;background:var(--ember);color:#1a1205;cursor:pointer}
+#go:hover{background:#f0bd62}
+#go:focus-visible{outline:3px solid var(--bolt);outline-offset:3px}
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<div id="hurt"></div>
+
+<div id="hud">
+  <div id="cross"></div>
+  <div id="prompt" hidden>Press R to lift Mjolnir</div>
+  <div id="whirl" hidden><span id="whirlTxt"></span><div class="bar"><i id="whirlBar"></i></div></div>
+  <div id="score"><b id="scoreN">0</b>draugr felled</div>
+  <div id="left" class="corner">
+    <span>Health</span>
+    <div class="bar"><i id="hpBar"></i></div>
+  </div>
+  <div id="right" class="corner">
+    <span id="hammerTxt">Mjolnir in hand</span>
+    <div class="bar"><i id="ltBar"></i></div>
+    <span>Lightning</span>
+    <div class="bar"><i id="beamBar"></i></div>
+    <span>Lightning beam</span>
+  </div>
+  <div id="toast"></div>
+</div>
+
+<div id="overlay">
+  <div class="sheet">
+    <h1>Thor: Storm Simulator</h1>
+    <p class="lede">Hurl Mjolnir, call it home, and bring the lightning down on the draugr crawling out of the pines.</p>
+    <dl class="keys">
+      <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Move. Hold Shift to sprint, Space to jump</dd>
+      <dt><kbd>Left click</kbd><kbd>F</kbd></dt><dd>Tap to throw Mjolnir, or hold to spin it and throw harder. With no hammer in hand, punch</dd>
+      <dt><kbd>Right click</kbd><kbd>V</kbd></dt><dd>Swing Mjolnir, alternating an overhead slam and a sweep</dd>
+      <dt><kbd>R</kbd><kbd>Right click</kbd></dt><dd>Recall Mjolnir. Right click recalls when your hand is empty. Stand next to it and press R to lift it out of the ground</dd>
+      <dt><kbd>Space</kbd></dt><dd>Jump. Double-tap to fly, or tap while spinning Mjolnir. While flying, tap to land</dd>
+      <dt><kbd>Z</kbd></dt><dd>Hold to fire a lightning beam from Mjolnir, or from your open hands when it's away</dd>
+      <dt><kbd>E</kbd></dt><dd>Call lightning down at the crosshair</dd>
+      <dt><kbd>Q</kbd></dt><dd>Call lightning onto Mjolnir to charge it</dd>
+      <dt><kbd>M</kbd></dt><dd>Mute sound</dd>
+    </dl>
+    <p class="tip">Mjolnir ricochets between draugr, lands head first, and blasts the ground around it. Spin it for about a second to reach full power. In flight, steer with the mouse, W to speed up, S to slow, Shift to boost, A and D to bank. If your browser blocks mouse capture, use the arrow keys to look around, or open the file in its own tab.</p>
+    <button id="go">Take up Mjolnir</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+// ---------- helpers ----------
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const $ = id => document.getElementById(id);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FLASH_SCALE = reduceMotion ? 0.3 : 1;
+const SHAKE_SCALE = reduceMotion ? 0.4 : 1;
+
+// Tuning: the numbers that decide how powerful Thor feels
+const T = {
+  walk: 9, sprint: 17, jump: 10.5, gravity: 20,
+  throwSpeed: 95, recallAccel: 320, recallMax: 130,
+  enemyHp: 70, enemyDmg: 5, maxEnemies: 22, spawnEvery: 0.9,
+  strikeCd: 0.35, strikeRadius: 10,
+  beamDrain: 0.2, beamDmg: 20,
+  regenDelay: 2, regen: 14
+};
+
+const Y = new THREE.Vector3(0, 1, 0);
+const X = new THREE.Vector3(1, 0, 0);
+
+// ---------- renderer / scene ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.prepend(renderer.domElement);
+const canvas = renderer.domElement;
+
+const scene = new THREE.Scene();
+const fogBase = new THREE.Color(0x16213a);
+const fogFlash = new THREE.Color(0x7d9fd0);
+scene.fog = new THREE.FogExp2(0x16213a, 0.009);
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 400);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+// sky dome (gradient + faint cloud banding + lightning flash)
+const skyU = { flash: { value: 0 }, time: { value: 0 } };
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(300, 24, 16),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, uniforms: skyU,
+    vertexShader: 'varying vec3 vP; void main(){ vP=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader: `
+      varying vec3 vP; uniform float flash; uniform float time;
+      void main(){
+        float h = clamp(vP.y*1.5+0.08, 0.0, 1.0);
+        vec3 horizon = vec3(0.09,0.13,0.23);
+        vec3 zenith  = vec3(0.015,0.025,0.06);
+        vec3 c = mix(horizon, zenith, pow(h,0.6));
+        float b = sin(vP.x*8.0+vP.z*6.0+time*0.03)*sin(vP.z*10.0-vP.x*5.0-time*0.02)*0.5+0.5;
+        c += vec3(0.035,0.045,0.08)*b*(1.0-h*0.6);
+        c += vec3(0.55,0.7,1.0)*flash*(0.3+0.7*(1.0-h*0.5));
+        gl_FragColor = vec4(c,1.0);
+      }`
+  })
+);
+sky.renderOrder = -1;
+scene.add(sky);
+
+const hemi = new THREE.HemisphereLight(0x6f8fd0, 0x1a2218, 0.55);
+scene.add(hemi);
+const moon = new THREE.DirectionalLight(0x9db8ff, 0.6);
+moon.position.set(-30, 50, 20);
+scene.add(moon);
+const flashLight = new THREE.PointLight(0x9fd0ff, 0, 70, 2);
+scene.add(flashLight);
+const handLight = new THREE.PointLight(0xffe2b0, 0.7, 5, 2);
+handLight.position.set(0.3, 0.3, 0.2);
+camera.add(handLight);
+
+// ---------- terrain ----------
+const WORLD = 95;
+function H(x, z) {
+  const d = Math.hypot(x, z);
+  const flat = clamp((d - 8) / 20, 0, 1);
+  return (Math.sin(x * 0.045) * Math.cos(z * 0.037) * 2.6 +
+          Math.sin(x * 0.11 + z * 0.09) * 0.7 +
+          Math.cos(z * 0.15 - x * 0.05) * 0.45) * flat;
+}
+
+(function buildTerrain() {
+  const geo = new THREE.PlaneGeometry(420, 420, 168, 168);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const cols = new Float32Array(pos.count * 3);
+  const grass = new THREE.Color(0x1b2e1f), rock = new THREE.Color(0x3b4250), moss = new THREE.Color(0x24382a), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), y = H(x, z);
+    pos.setY(i, y);
+    const n = (Math.sin(x * 0.31) * Math.sin(z * 0.27) + 1) / 2;
+    c.copy(grass).lerp(moss, n * 0.7).lerp(rock, clamp((y + 0.3) / 3.6, 0, 1) * 0.75);
+    const j = rand(0.9, 1.1);
+    cols[i * 3] = c.r * j; cols[i * 3 + 1] = c.g * j; cols[i * 3 + 2] = c.b * j;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  geo.computeVertexNormals();
+  scene.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));
+})();
+
+// ---------- scenery ----------
+const obstacles = []; // {x,z,r,h}
+
+(function buildScenery() {
+  // distant mountains
+  const mMat = new THREE.MeshLambertMaterial({ color: 0x1b2438, flatShading: true });
+  for (let i = 0; i < 20; i++) {
+    const a = i / 20 * Math.PI * 2 + rand(-0.1, 0.1), r = rand(185, 215);
+    const h = rand(45, 100), m = new THREE.Mesh(new THREE.ConeGeometry(rand(38, 70), h, 5), mMat);
+    m.position.set(Math.cos(a) * r, h / 2 - 8, Math.sin(a) * r);
+    m.rotation.y = rand(0, 6);
+    scene.add(m);
+  }
+
+  // pines as instanced meshes
+  const N = 190;
+  const trunkG = new THREE.CylinderGeometry(0.18, 0.28, 2.2, 6); trunkG.translate(0, 1.1, 0);
+  const coneA = new THREE.ConeGeometry(1.7, 3.4, 7); coneA.translate(0, 3.4, 0);
+  const coneB = new THREE.ConeGeometry(1.25, 2.8, 7); coneB.translate(0, 5.3, 0);
+  const mTrunk = new THREE.MeshLambertMaterial({ color: 0x2e2218, flatShading: true });
+  const mLeaf = new THREE.MeshLambertMaterial({ color: 0x15301f, flatShading: true });
+  const iT = new THREE.InstancedMesh(trunkG, mTrunk, N);
+  const iA = new THREE.InstancedMesh(coneA, mLeaf, N);
+  const iB = new THREE.InstancedMesh(coneB, mLeaf, N);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  let n = 0;
+  for (let tries = 0; n < N && tries < 3000; tries++) {
+    const a = rand(0, Math.PI * 2), r = rand(18, WORLD + 30);
+    const x = Math.cos(a) * r, z = Math.sin(a) * r, sc = rand(0.8, 1.8);
+    p.set(x, H(x, z) - 0.1, z);
+    q.setFromAxisAngle(Y, rand(0, 6.28));
+    s.set(sc, sc * rand(0.9, 1.25), sc);
+    m4.compose(p, q, s);
+    iT.setMatrixAt(n, m4); iA.setMatrixAt(n, m4); iB.setMatrixAt(n, m4);
+    obstacles.push({ x, z, r: 0.45 * sc, h: 7 * sc });
+    n++;
+  }
+  [iT, iA, iB].forEach(m => { m.count = n; m.frustumCulled = false; scene.add(m); });
+
+  // rocks
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0x3a404c, flatShading: true });
+  for (let i = 0; i < 45; i++) {
+    const a = rand(0, 6.28), r = rand(12, WORLD), x = Math.cos(a) * r, z = Math.sin(a) * r, rad = rand(0.5, 1.7);
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 0), rockMat);
+    m.position.set(x, H(x, z) + rad * 0.3, z);
+    m.scale.y = 0.7; m.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    scene.add(m);
+    obstacles.push({ x, z, r: rad * 0.9, h: rad * 1.1 });
+  }
+
+  // central dais and standing stones
+  const dais = new THREE.Mesh(new THREE.CircleGeometry(5.4, 40), new THREE.MeshLambertMaterial({ color: 0x2a303c }));
+  dais.rotation.x = -Math.PI / 2; dais.position.y = 0.03; scene.add(dais);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(5.0, 5.35, 48),
+    new THREE.MeshBasicMaterial({ color: 0x6db6ff, transparent: true, opacity: 0.45, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; scene.add(ring);
+
+  const stoneMat = new THREE.MeshLambertMaterial({ color: 0x4a5160, flatShading: true });
+  const runeMat = new THREE.MeshBasicMaterial({ color: 0x6db6ff });
+  for (let i = 0; i < 9; i++) {
+    const a = i / 9 * Math.PI * 2, x = Math.cos(a) * 15, z = Math.sin(a) * 15, h = rand(4, 6);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.5, h, 1.1), stoneMat);
+    m.position.set(x, H(x, z) + h / 2 - 0.3, z);
+    m.rotation.y = -a + Math.PI / 2 + rand(-0.15, 0.15);
+    m.rotation.z = rand(-0.05, 0.05);
+    scene.add(m);
+    const rune = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 1.3), runeMat);
+    rune.position.set(x * 0.955, m.position.y + 0.6, z * 0.955);
+    rune.lookAt(0, rune.position.y, 0);
+    scene.add(rune);
+    obstacles.push({ x, z, r: 0.95, h });
+  }
+})();
+
+// ---------- audio (all synthesized) ----------
+let ac = null, master = null, noiseBuf = null, muted = false;
+function initAudio() {
+  if (ac) { ac.resume(); return; }
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ac.createDynamicsCompressor();
+    master = ac.createGain(); master.gain.value = 0.75;
+    master.connect(comp); comp.connect(ac.destination);
+    noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  } catch (e) { ac = null; }
+}
+function noise(dur, type, f0, f1, gain, delay = 0, q = 1) {
+  if (!ac) return;
+  const t = ac.currentTime + delay;
+  const src = ac.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+  const f = ac.createBiquadFilter(); f.type = type; f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.02, dur / 4));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(master);
+  src.start(t); src.stop(t + dur + 0.05);
+}
+function tone(f0, f1, dur, gain, type = 'sine', delay = 0) {
+  if (!ac) return;
+  const t = ac.currentTime + delay;
+  const o = ac.createOscillator(); o.type = type;
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+const sfx = {
+  whoosh() { noise(0.4, 'bandpass', 350, 1800, 0.4, 0, 1.2); },
+  zap() { noise(0.18, 'highpass', 5000, 1500, 0.5); tone(900, 180, 0.16, 0.2, 'sawtooth'); },
+  swish() { noise(0.16, 'bandpass', 700, 1800, 0.22, 0, 1.5); },
+  thud() { tone(130, 42, 0.28, 0.9); noise(0.09, 'lowpass', 2200, 300, 0.45); },
+  clunk() { tone(210, 70, 0.16, 0.5, 'triangle'); noise(0.12, 'highpass', 3000, 900, 0.3); },
+  hit() { tone(320, 80, 0.13, 0.35, 'square'); noise(0.12, 'bandpass', 1000, 300, 0.5); },
+  die() { tone(240, 55, 0.45, 0.25, 'sawtooth'); },
+  hurt() { tone(120, 55, 0.22, 0.6); },
+  windup() { tone(45, 130, 0.24, 0.45, 'sawtooth'); noise(0.24, 'lowpass', 300, 900, 0.3); },
+  thunder(dist, vol = 1) {
+    if (!ac) return;
+    const d = Math.min(dist / 300, 0.35);
+    noise(0.22, 'highpass', 4200, 900, 0.55 * vol, d);
+    noise(0.75, 'bandpass', 1400, 250, 0.6 * vol, d + 0.02, 0.8);
+    noise(3.2, 'lowpass', 430, 45, 0.9 * vol, d + 0.1, 0.7);
+    tone(70, 28, 2.2, 0.5 * vol, 'sine', d + 0.05);
+  }
+};
+
+const windLoop = { type: 'bandpass', src: null }, whirlLoop = { type: 'bandpass', src: null };
+const beamLoop = { type: 'bandpass', src: null }, beamHum = { type: 'lowpass', src: null };
+function loopSet(L, freq, gain, q) {
+  if (!ac) return;
+  if (!L.src) {
+    L.src = ac.createBufferSource(); L.src.buffer = noiseBuf; L.src.loop = true;
+    L.f = ac.createBiquadFilter(); L.f.type = L.type;
+    L.g = ac.createGain(); L.g.gain.value = 0;
+    L.src.connect(L.f); L.f.connect(L.g); L.g.connect(master);
+    L.src.start();
+  }
+  const t = ac.currentTime;
+  L.f.frequency.setTargetAtTime(freq, t, 0.05); L.f.Q.value = q;
+  L.g.gain.setTargetAtTime(gain, t, 0.04);
+}
+function loopStop(L) {
+  if (!L.src) return;
+  const src = L.src;
+  L.g.gain.setTargetAtTime(0, ac.currentTime, 0.05);
+  L.src = null;
+  setTimeout(() => { try { src.stop(); } catch (e) {} }, 400);
+}
+
+// ---------- state ----------
+let playing = false, noLock = false, time = 0;
+let hitstop = 0, shake = 0, flash = 0, hurtA = 0, handKick = 0, handRecoil = 0, heldPop = 0, spaceUsed = false, lastSpace = -9, raise = 0, camDip = 0, beamAmt = 0;
+let lightningCd = 0, score = 0, spawnTimer = 0, lastHurt = -10, ambientTimer = rand(5, 9);
+const keys = {};
+const whirl = { holding: false, t: 0, active: false, power: 0, phi: 0 };
+const fly = { on: false, speed: 0, v: new THREE.Vector3(), roll: 0 };
+const beam = { on: false, energy: 1, locked: false, regen: 0, tick: 0, scorch: 0 };
+const swing = { active: false, t: 0, dur: 0.6, type: 0, hit: false, next: 0 };
+const punch = { holding: false, active: false, t: 0, dur: 0.3, hand: 0, heavy: false, hit: false, cd: 0, combo: 0, last: -9 };
+const lift = { t: 0, dur: 1.3, swapped: false, popped: false, psi: 0, scale: 0.9 };
+const player = { x: 0, z: 7, y: 0, vx: 0, vz: 0, vy: 0, yaw: 0, pitch: 0, onGround: true, hp: 100, bobT: 0 };
+
+// ---------- temp vectors ----------
+const _o = new THREE.Vector3(), _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();
+const _or = new THREE.Vector3(), _ou = new THREE.Vector3(), _ob = new THREE.Vector3();
+const _m = new THREE.Matrix4(), _qs = new THREE.Quaternion();
+const _p0 = new THREE.Vector3(), _d = new THREE.Vector3(), _hand = new THREE.Vector3();
+const _cp = new THREE.Vector3(), _ec = new THREE.Vector3(), _ab = new THREE.Vector3(), _ap = new THREE.Vector3();
+
+function camBasis() {
+  camera.updateMatrixWorld();
+  _o.setFromMatrixPosition(camera.matrixWorld);
+  _r.setFromMatrixColumn(camera.matrixWorld, 0);
+  _u.setFromMatrixColumn(camera.matrixWorld, 1);
+  _f.setFromMatrixColumn(camera.matrixWorld, 2).negate();
+}
+function handWorld(out) {
+  camBasis();
+  return camera.localToWorld(out.copy(rig.position));
+}
+
+// ---------- particles ----------
+const MAXP = 800;
+const pPos = new Float32Array(MAXP * 3), pCol = new Float32Array(MAXP * 3), pVel = new Float32Array(MAXP * 3);
+const pBase = new Float32Array(MAXP * 3), pLife = new Float32Array(MAXP), pMax = new Float32Array(MAXP), pGrav = new Float32Array(MAXP);
+for (let i = 0; i < MAXP; i++) pPos[i * 3 + 1] = -1000;
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+function glowTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+const points = new THREE.Points(pGeo, new THREE.PointsMaterial({
+  size: 0.38, map: glowTex(), vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+}));
+points.frustumCulled = false;
+scene.add(points);
+let pHead = 0;
+const _col = new THREE.Color();
+function spawn(p, vx, vy, vz, hex, life, grav = 1) {
+  const i = pHead, i3 = i * 3; pHead = (pHead + 1) % MAXP;
+  pPos[i3] = p.x; pPos[i3 + 1] = p.y; pPos[i3 + 2] = p.z;
+  pVel[i3] = vx; pVel[i3 + 1] = vy; pVel[i3 + 2] = vz;
+  _col.setHex(hex);
+  pBase[i3] = _col.r; pBase[i3 + 1] = _col.g; pBase[i3 + 2] = _col.b;
+  pLife[i] = pMax[i] = life; pGrav[i] = grav;
+}
+function burst(p, n, hex, speed, grav = 1) {
+  for (let i = 0; i < n; i++) {
+    const s = rand(0.3, 1) * speed;
+    spawn(p, rand(-1, 1) * s, rand(0.1, 1.2) * s, rand(-1, 1) * s, hex, rand(0.35, 0.9), grav);
+  }
+}
+function updateParticles(dt) {
+  for (let i = 0; i < MAXP; i++) {
+    if (pLife[i] <= 0) continue;
+    const i3 = i * 3;
+    pLife[i] -= dt;
+    pVel[i3 + 1] -= 14 * pGrav[i] * dt;
+    pPos[i3] += pVel[i3] * dt; pPos[i3 + 1] += pVel[i3 + 1] * dt; pPos[i3 + 2] += pVel[i3 + 2] * dt;
+    const f = Math.max(pLife[i] / pMax[i], 0);
+    pCol[i3] = pBase[i3] * f; pCol[i3 + 1] = pBase[i3 + 1] * f; pCol[i3 + 2] = pBase[i3 + 2] * f;
+  }
+  pGeo.attributes.position.needsUpdate = true;
+  pGeo.attributes.color.needsUpdate = true;
+}
+
+// ---------- lightning bolts ----------
+const boltGeo = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+const bolts = [];
+function jag(a, b, detail) {
+  let pts = [a.clone(), b.clone()], disp = a.distanceTo(b) * 0.12;
+  for (let i = 0; i < detail; i++) {
+    const next = [];
+    for (let j = 0; j < pts.length - 1; j++) {
+      const p = pts[j], q = pts[j + 1], m = p.clone().add(q).multiplyScalar(0.5);
+      m.x += rand(-disp, disp); m.z += rand(-disp, disp); m.y += rand(-disp, disp) * 0.3;
+      next.push(p, m);
+    }
+    next.push(pts[pts.length - 1]);
+    pts = next; disp *= 0.55;
+  }
+  return pts;
+}
+function seg(group, a, b, r, mat) {
+  const m = new THREE.Mesh(boltGeo, mat), d = new THREE.Vector3().subVectors(b, a), len = d.length();
+  m.position.addVectors(a, b).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(Y, d.normalize());
+  m.scale.set(r, len, r);
+  group.add(m);
+}
+function addBolt(a, b, width, life, branches, detail = 5) {
+  const group = new THREE.Group();
+  const core = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const glow = new THREE.MeshBasicMaterial({ color: 0x5aa8ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const draw = (from, to, w, det) => {
+    const pts = jag(from, to, det);
+    for (let i = 0; i < pts.length - 1; i++) { seg(group, pts[i], pts[i + 1], w, core); seg(group, pts[i], pts[i + 1], w * 4, glow); }
+    return pts;
+  };
+  const main = draw(a, b, width, detail);
+  if (branches) {
+    for (let k = 0; k < 4; k++) {
+      const start = main[Math.floor(rand(main.length * 0.25, main.length * 0.9))];
+      const end = start.clone().add(new THREE.Vector3(rand(-14, 14), -rand(8, 22), rand(-14, 14)));
+      draw(start, end, width * 0.45, 3);
+    }
+  }
+  scene.add(group);
+  bolts.push({ group, core, glow, t: 0, life });
+}
+function updateBolts(dt) {
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    const b = bolts[i];
+    b.t += dt;
+    if (b.t >= b.life) { scene.remove(b.group); b.core.dispose(); b.glow.dispose(); bolts.splice(i, 1); continue; }
+    const k = 1 - b.t / b.life, fl = 0.65 + 0.35 * Math.sin(b.t * 110);
+    b.core.opacity = k * fl; b.glow.opacity = 0.5 * k * fl;
+  }
+}
+
+// ---------- ring / scorch effects ----------
+const ringGeo = new THREE.RingGeometry(0.85, 1, 40);
+const scorchGeo = new THREE.CircleGeometry(1.7, 22); scorchGeo.rotateX(-Math.PI / 2);
+const fxList = [];
+function shockwave(p, color, maxR) {
+  const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+  }));
+  m.position.set(p.x, H(p.x, p.z) + 0.15, p.z); m.rotation.x = -Math.PI / 2;
+  scene.add(m); fxList.push({ m, t: 0, life: 0.55, maxR, type: 'ring' });
+}
+function scorch(p) {
+  const m = new THREE.Mesh(scorchGeo, new THREE.MeshBasicMaterial({
+    color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2
+  }));
+  m.position.set(p.x, H(p.x, p.z) + 0.12, p.z); m.rotation.y = rand(0, 6);
+  scene.add(m); fxList.push({ m, t: 0, life: 14, type: 'scorch' });
+}
+function updateFx(dt) {
+  for (let i = fxList.length - 1; i >= 0; i--) {
+    const f = fxList[i];
+    f.t += dt;
+    const k = f.t / f.life;
+    if (k >= 1) { scene.remove(f.m); f.m.material.dispose(); fxList.splice(i, 1); continue; }
+    if (f.type === 'ring') { const s = 0.5 + f.maxR * (1 - Math.pow(1 - k, 3)); f.m.scale.set(s, s, s); f.m.material.opacity = 0.8 * (1 - k); }
+    else f.m.material.opacity = 0.55 * (1 - k);
+  }
+}
+
+// ---------- Mjolnir ----------
+function makeHammer() {
+  const g = new THREE.Group();
+  const iron = new THREE.MeshStandardMaterial({ color: 0x9aa2b0, metalness: 0.85, roughness: 0.38, emissive: 0x4a90ff, emissiveIntensity: 0 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x555b68, metalness: 0.8, roughness: 0.5, emissive: 0x4a90ff, emissiveIntensity: 0 });
+  const leather = new THREE.MeshStandardMaterial({ color: 0x4b2f1c, roughness: 0.9 });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  add(new THREE.BoxGeometry(0.78, 0.42, 0.42), iron, 0, 0.3, 0);
+  add(new THREE.BoxGeometry(0.1, 0.5, 0.5), dark, -0.4, 0.3, 0);
+  add(new THREE.BoxGeometry(0.1, 0.5, 0.5), dark, 0.4, 0.3, 0);
+  add(new THREE.BoxGeometry(0.14, 0.46, 0.46), dark, 0, 0.3, 0);
+  for (const z of [-0.213, 0.213]) {
+    add(new THREE.BoxGeometry(0.46, 0.04, 0.012), dark, 0, 0.3, z);
+    add(new THREE.BoxGeometry(0.04, 0.28, 0.012), dark, -0.22, 0.3, z);
+    add(new THREE.BoxGeometry(0.04, 0.28, 0.012), dark, 0.22, 0.3, z);
+  }
+  add(new THREE.CylinderGeometry(0.045, 0.05, 0.95, 8), leather, 0, -0.3, 0);
+  add(new THREE.CylinderGeometry(0.075, 0.075, 0.06, 10), dark, 0, -0.8, 0);
+  const strap = add(new THREE.TorusGeometry(0.07, 0.012, 6, 12), leather, 0, -0.85, 0);
+  strap.rotation.x = Math.PI / 2;
+  for (const y of [-0.55, -0.4, -0.25]) add(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 8), dark, 0, y, 0);
+  const light = new THREE.PointLight(0x6db6ff, 0, 10, 2);
+  light.position.y = 0.3; g.add(light);
+  g.userData = { mats: [iron, dark], light };
+  return g;
+}
+// ---------- hands, forearms and the rigs that carry them ----------
+const skinMat = new THREE.MeshLambertMaterial({ color: 0xd9a888, emissive: 0x1a0d08 });
+const leatherMat = new THREE.MeshStandardMaterial({ color: 0x3f2616, roughness: 0.85 });
+const steelMat = new THREE.MeshStandardMaterial({ color: 0x9aa2b0, metalness: 0.85, roughness: 0.4 });
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qFlip = new THREE.Quaternion();
+
+function makeHandSet(mirror) {
+  const hand = new THREE.Group(), fingers = [];
+  const box = (parent, w, h, d, mat, x, y, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z); parent.add(m); return m;
+  };
+  box(hand, 0.14, 0.16, 0.06, skinMat, 0, 0, 0.075); // back of the hand
+  for (let i = 0; i < 4; i++) {
+    const base = new THREE.Group();
+    base.position.set(-0.06, 0.06 - i * 0.04, 0.072);
+    const l1 = 0.115 - (i === 3 ? 0.015 : 0), l2 = 0.075 - (i === 3 ? 0.012 : 0);
+    box(base, 0.028, 0.036, l1, skinMat, 0, 0, -l1 / 2);
+    const j2 = new THREE.Group(); j2.position.set(0, 0, -l1);
+    box(j2, 0.026, 0.034, l2, skinMat, 0, 0, -l2 / 2);
+    base.add(j2); hand.add(base);
+    fingers.push({ base, j2, i });
+  }
+  const thumb = new THREE.Group(); thumb.position.set(0.06, 0.07, 0.078);
+  box(thumb, 0.034, 0.034, 0.09, skinMat, 0, 0, -0.045);
+  hand.add(thumb);
+  // fills the fist when it holds nothing
+  const core = box(hand, 0.1, 0.15, 0.1, skinMat, 0, 0, -0.005);
+  if (mirror) hand.scale.x = -1;
+
+  const forearm = new THREE.Group();
+  const cyl = (rt, rb, h, mat, y) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 10), mat);
+    m.position.y = y; forearm.add(m);
+  };
+  cyl(0.045, 0.065, 1.2, skinMat, -0.6);
+  cyl(0.062, 0.068, 0.3, leatherMat, -0.2);
+  cyl(0.071, 0.071, 0.028, steelMat, -0.06);
+  cyl(0.071, 0.071, 0.02, steelMat, -0.2);
+  cyl(0.071, 0.071, 0.028, steelMat, -0.34);
+  camera.add(forearm);
+
+  const rig = new THREE.Group();   // origin of a rig is the gripping point of its hand
+  camera.add(rig);
+  rig.add(hand);
+
+  // grip 0 = open hand, 1 = fist
+  function setGrip(g) {
+    for (const f of fingers) {
+      f.base.rotation.set((1 - g) * (f.i - 1.5) * 0.14, (1 - g) * (Math.PI / 2 - 0.1), 0);
+      f.j2.rotation.y = -(g * Math.PI / 2 + (1 - g) * 0.3);
+    }
+    thumb.rotation.y = -0.5 + g * 1.05;
+  }
+  return { hand, core, forearm, rig, setGrip, mirror, shoulder: new THREE.Vector3(mirror ? -0.7 : 0.7, -1.15, 0.75) };
+}
+const R = makeHandSet(false), L = makeHandSet(true);
+const rig = R.rig, rigL = L.rig, setGrip = R.setGrip;
+L.setGrip(1);
+const held = makeHammer();
+held.scale.setScalar(0.9);
+held.position.set(0, 0.405, 0);
+rig.add(held);
+const flyer = makeHammer();
+flyer.visible = false;
+scene.add(flyer);
+
+function orient(obj, dir, angle) {
+  _or.crossVectors(dir, Y);
+  if (_or.lengthSq() < 1e-4) _or.set(1, 0, 0);
+  _or.normalize();
+  _ou.crossVectors(_or, dir).normalize();
+  _ob.copy(dir).negate();
+  _m.makeBasis(_or, _ou, _ob);
+  obj.quaternion.setFromRotationMatrix(_m);
+  _qs.setFromAxisAngle(X, angle);
+  obj.quaternion.multiply(_qs);
+}
+
+const hammer = {
+  state: 'held', // held | flying | falling | stuck | windup | recalling
+  pos: new THREE.Vector3(), dir: new THREE.Vector3(0, 0, -1),
+  speed: 0, traveled: 0, spin: 0, vy: 0, windup: 0, charge: 0, hit: new Set(), arcT: 0, power: 0, bounces: 0,
+  landFrom: new THREE.Vector3(), landQ0: new THREE.Quaternion(), landQ1: new THREE.Quaternion(), landT: 1
+};
+
+function worldCollide(p) {
+  if (p.y < H(p.x, p.z) + 0.15) return 'ground';
+  for (const o of obstacles) {
+    const dx = p.x - o.x, dz = p.z - o.z, rr = o.r + 0.2;
+    if (dx * dx + dz * dz < rr * rr && p.y < H(o.x, o.z) + o.h) return 'object';
+  }
+  return null;
+}
+
+function aimPoint(maxD) {
+  camBasis();
+  const p = new THREE.Vector3();
+  for (let t = 1; t <= maxD; t += 0.75) {
+    p.copy(_o).addScaledVector(_f, t);
+    if (p.y < H(p.x, p.z)) {
+      p.addScaledVector(_f, -0.4); p.y = H(p.x, p.z);
+      return { point: p.clone(), hit: true };
+    }
+    for (const e of enemies) {
+      if (e.dying) continue;
+      const dx = p.x - e.x, dz = p.z - e.z;
+      if (dx * dx + dz * dz < 1.2 && p.y > e.y && p.y < e.y + 2.3) return { point: new THREE.Vector3(e.x, e.y, e.z), hit: true };
+    }
+    for (const o of obstacles) {
+      const dx = p.x - o.x, dz = p.z - o.z, rr = o.r + 0.3;
+      if (dx * dx + dz * dz < rr * rr && p.y < H(o.x, o.z) + o.h) return { point: p.clone(), hit: true };
+    }
+  }
+  // nothing in range (looking at the sky): pick a spot ahead on the ground
+  const flat = new THREE.Vector3(_f.x, 0, _f.z).normalize();
+  p.copy(_o).addScaledVector(flat, 45); p.y = H(p.x, p.z);
+  return { point: p.clone(), hit: false };
+}
+
+function throwHammer(power = 0) {
+  if (hammer.state !== 'held' || fly.on) return;
+  const aim = aimPoint(90);
+  camBasis();
+  const start = _o.clone().addScaledVector(_f, 0.9).addScaledVector(_r, 0.35).addScaledVector(_u, -0.15);
+  if (aim.hit && aim.point.distanceTo(start) > 3) hammer.dir.copy(aim.point).sub(start).normalize();
+  else hammer.dir.copy(_f);
+  hammer.pos.copy(start);
+  assistDir(start, hammer.dir);
+  hammer.state = 'flying'; hammer.speed = T.throwSpeed + power * 60; hammer.power = power;
+  hammer.bounces = (hammer.charge > 0 ? 5 : 3) + (power >= 0.8 ? 2 : 0);
+  hammer.traveled = 0; hammer.spin = 0;
+  hammer.hit.clear();
+  flyer.visible = true; held.visible = false;
+  handKick = 1;
+  shake = Math.max(shake, 0.18 + power * 0.3);
+  sfx.whoosh();
+  if (power >= 0.8) { sfx.hit(); flash = Math.max(flash, 0.25); burst(start, 26, 0x8fd0ff, 9, 0.3); }
+}
+
+function recall() {
+  const h = hammer;
+  if (h.state === 'held' || h.state === 'recalling' || h.state === 'windup' || h.state === 'lifting') return;
+  h.hit.clear(); h.power = 0;
+  if (h.state === 'stuck') {
+    if (Math.hypot(player.x - h.pos.x, player.z - h.pos.z) < 3.4 && Math.abs(player.y - h.pos.y) < 3) { startLift(); return; }
+    h.state = 'windup'; h.windup = 0.12; sfx.windup();
+  } else { h.state = 'recalling'; h.speed = 30; sfx.whoosh(); }
+}
+
+function impactFx(p) {
+  burst(p, 18, 0xffe0a0, 6);
+  shockwave(p, 0xffd9a0, 3);
+  sfx.clunk();
+  shake = Math.max(shake, 0.28);
+}
+
+// Lands head first and stands upright in the ground, handle up, ready to be lifted
+function settle() {
+  const h = hammer;
+  h.state = 'stuck';
+  const gy = H(h.pos.x, h.pos.z);
+  h.landFrom.copy(h.pos);
+  h.landQ0.copy(flyer.quaternion);
+  h.landQ1.setFromAxisAngle(Y, Math.atan2(h.dir.x, h.dir.z)).multiply(_qb.setFromAxisAngle(X, Math.PI));
+  h.pos.set(h.pos.x, gy + 0.39, h.pos.z);
+  h.landT = 0;
+  flyer.position.copy(h.landFrom);
+  _p0.set(h.pos.x, gy + 0.1, h.pos.z);
+  impactFx(_p0);
+  burst(_p0, 14, 0x7a6a50, 4);
+  groundBlast(_p0, h.power >= 0.8 ? 7 : 4.5, 70);
+}
+
+function catchHammer() {
+  const h = hammer;
+  h.state = 'held'; flyer.visible = false; held.visible = true;
+  handRecoil = 1; heldPop = 1; handKick = 0;
+  shake = Math.max(shake, 0.4);
+  sfx.thud();
+  handWorld(_hand);
+  burst(_hand, 18, 0xcfeaff, 5, 0.3);
+  shockwave(_hand.clone().setY(H(player.x, player.z)), 0xcfeaff, 2);
+  if (h.charge > 0) { burst(_hand, 36, 0x7fc4ff, 10, 0.3); handRecoil = 1.4; flash = Math.max(flash, 0.35); }
+}
+
+function chargeHammer() {
+  hammer.charge = 12;
+  sfx.hit();
+}
+
+function updateHammer(dt) {
+  const h = hammer;
+  // charge glow and arcs
+  if (h.charge > 0) {
+    h.charge -= dt;
+    const k = Math.min(1, h.charge / 2) * (0.7 + 0.3 * Math.sin(time * 35));
+    for (const hm of [held, flyer]) {
+      hm.userData.mats.forEach(m => m.emissiveIntensity = k * 0.9);
+      hm.userData.light.intensity = k * 3;
+    }
+    const src = h.state === 'held' ? held.getWorldPosition(_p0) : flyer.position;
+    spawn(src, rand(-1, 1) * 2, rand(-1, 2), rand(-1, 1) * 2, 0x8fd0ff, 0.35, 0.2);
+    h.arcT -= dt;
+    if (h.arcT <= 0) {
+      h.arcT = rand(0.12, 0.35);
+      const a = src.clone();
+      addBolt(a, a.clone().add(new THREE.Vector3(rand(-1.4, 1.4), rand(-1.2, 1.2), rand(-1.4, 1.4))), 0.015, 0.09, false, 3);
+    }
+  } else {
+    const wg = whirl.active ? whirl.power * 0.7 * (0.7 + 0.3 * Math.sin(time * 35)) : 0;
+    const gk = Math.max(wg, fly.on ? 0.5 : 0, beam.on ? 0.9 : 0);
+    for (const hm of [held, flyer]) { hm.userData.mats.forEach(m => m.emissiveIntensity = gk * 0.9); hm.userData.light.intensity = gk * 3; }
+    if (h.state === 'held' && Math.random() < 0.05) {
+      held.getWorldPosition(_p0);
+      const a = _p0.clone();
+      addBolt(a, a.clone().add(new THREE.Vector3(rand(-0.9, 0.9), rand(-0.9, 0.9), rand(-0.9, 0.9))), 0.012, 0.07, false, 3);
+    }
+  }
+
+  if (h.state === 'held') return;
+
+  if (h.state === 'flying') {
+    const step = h.speed * dt, n = Math.max(1, Math.ceil(step / 0.5)), sub = step / n;
+    for (let i = 0; i < n; i++) {
+      _p0.copy(h.pos);
+      h.pos.addScaledVector(h.dir, sub); h.traveled += sub;
+      const hitE = sweepEnemies(_p0, h.pos, (h.charge > 0 ? 140 : 100) * (1 + h.power * 0.7), false);
+      if (hitE && h.bounces > 0) rebound(hitE);
+      const c = worldCollide(h.pos);
+      if (c) {
+        h.pos.addScaledVector(h.dir, -0.35);
+        if (c === 'ground') settle();
+        else { h.state = 'falling'; h.vy = 0; impactFx(h.pos); }
+        break;
+      }
+    }
+    if (h.state === 'flying') {
+      if (h.traveled > 55 + h.power * 60) { h.dir.y -= dt * 1.3; h.dir.normalize(); h.speed = Math.max(h.speed - dt * 12, 20); }
+      if (Math.hypot(h.pos.x, h.pos.z) > 160) { h.pos.y = H(h.pos.x, h.pos.z); settle(); }
+      else { h.spin += dt * 18; orient(flyer, h.dir, h.spin); }
+      spawn(h.pos, rand(-0.5, 0.5), rand(-0.5, 0.5), rand(-0.5, 0.5), h.charge > 0 ? 0x6db6ff : 0xaab6c8, 0.3, 0);
+    }
+    if (h.state === 'stuck') return;
+  } else if (h.state === 'falling') {
+    h.vy -= 26 * dt; h.pos.y += h.vy * dt;
+    _qa.setFromAxisAngle(Y, Math.atan2(h.dir.x, h.dir.z)).multiply(_qb.setFromAxisAngle(X, Math.PI));
+    flyer.quaternion.slerp(_qa, 1 - Math.exp(-7 * dt));   // tips over to land head first
+    if (h.pos.y < H(h.pos.x, h.pos.z) + 0.4) settle();
+    if (h.state === 'stuck') return;
+  } else if (h.state === 'stuck') {
+    if (h.landT < 0.2) {
+      h.landT += dt;
+      const e = clamp(h.landT / 0.2, 0, 1), e2 = 1 - Math.pow(1 - e, 3);
+      flyer.position.lerpVectors(h.landFrom, h.pos, e2);
+      flyer.quaternion.copy(h.landQ0).slerp(h.landQ1, e2);
+      return;
+    }
+    flyer.quaternion.copy(h.landQ1);
+  } else if (h.state === 'lifting') {
+    updateLift(dt);
+    return;
+  } else if (h.state === 'windup') {
+    h.windup -= dt;
+    const k = 1 - h.windup / 0.12;
+    flyer.position.set(h.pos.x + rand(-0.07, 0.07), h.pos.y + k * 0.6 + rand(0, 0.06), h.pos.z + rand(-0.07, 0.07));
+    if (Math.random() < 0.5) spawn(h.pos, rand(-2, 2), rand(1, 4), rand(-2, 2), 0xffe0a0, 0.4);
+    if (h.windup <= 0) { h.state = 'recalling'; h.speed = 30; h.pos.y += 0.6; sfx.whoosh(); }
+    return;
+  } else if (h.state === 'recalling') {
+    handWorld(_hand);
+    _d.subVectors(_hand, h.pos);
+    const dist = _d.length();
+    h.speed = Math.min(h.speed + T.recallAccel * dt, T.recallMax);
+    const move = h.speed * dt;
+    if (dist <= Math.max(move, 0.5)) { sweepEnemies(h.pos, _hand, h.charge > 0 ? 140 : 100, true); catchHammer(); return; }
+    _d.multiplyScalar(1 / dist);
+    h.dir.copy(_d);
+    _p0.copy(h.pos);
+    h.pos.addScaledVector(_d, move);
+    sweepEnemies(_p0, h.pos, h.charge > 0 ? 140 : 100, true);
+    h.spin += dt * 24;
+    orient(flyer, _d, h.spin);
+    spawn(h.pos, rand(-0.5, 0.5), rand(-0.5, 0.5), rand(-0.5, 0.5), h.charge > 0 ? 0x6db6ff : 0xaab6c8, 0.3, 0);
+  }
+  flyer.position.copy(h.pos);
+}
+
+// ---------- enemies (draugr) ----------
+const enemies = [];
+const boxCache = new Map();
+function boxGeo(w, h, d) {
+  const k = w + '_' + h + '_' + d;
+  let g = boxCache.get(k);
+  if (!g) { g = new THREE.BoxGeometry(w, h, d); boxCache.set(k, g); }
+  return g;
+}
+function addBox(parent, w, h, d, mat, x, y, z) {
+  const m = new THREE.Mesh(boxGeo(w, h, d), mat);
+  m.position.set(x, y, z); parent.add(m); return m;
+}
+function makeDraugr() {
+  const g = new THREE.Group(); g.rotation.order = 'YXZ';
+  const skin = new THREE.MeshLambertMaterial({ color: 0x8696a3, flatShading: true });
+  const cloth = new THREE.MeshLambertMaterial({ color: 0x2b3140, flatShading: true });
+  const metal = new THREE.MeshLambertMaterial({ color: 0x5a5f6b, flatShading: true });
+  const wood = new THREE.MeshLambertMaterial({ color: 0x4a3524 });
+  const eye = new THREE.MeshBasicMaterial({ color: 0x9fe8ff });
+  addBox(g, 0.7, 0.9, 0.4, cloth, 0, 1.25, 0);
+  addBox(g, 0.78, 0.38, 0.48, metal, 0, 1.5, 0);
+  addBox(g, 0.36, 0.4, 0.36, skin, 0, 1.98, 0);
+  addBox(g, 0.44, 0.16, 0.44, metal, 0, 2.18, 0);
+  addBox(g, 0.09, 0.06, 0.04, eye, -0.09, 2.0, 0.19);
+  addBox(g, 0.09, 0.06, 0.04, eye, 0.09, 2.0, 0.19);
+  const mkLimb = (x, y, w, h, mat) => { const p = new THREE.Group(); p.position.set(x, y, 0); addBox(p, w, h, w, mat, 0, -h / 2 + 0.05, 0); g.add(p); return p; };
+  const armL = mkLimb(-0.47, 1.65, 0.18, 0.8, skin), armR = mkLimb(0.47, 1.65, 0.18, 0.8, skin);
+  addBox(armR, 0.06, 0.95, 0.06, wood, 0, -0.75, 0.14);
+  addBox(armR, 0.05, 0.3, 0.3, metal, 0, -1.15, 0.28);
+  const legL = mkLimb(-0.18, 0.85, 0.22, 0.85, cloth), legR = mkLimb(0.18, 0.85, 0.22, 0.85, cloth);
+  g.userData = { armL, armR, legL, legR, mats: [skin, cloth, metal, wood, eye] };
+  return g;
+}
+
+function spawnEnemy() {
+  const a = rand(0, 6.28), r = rand(48, 62);
+  let x = player.x + Math.cos(a) * r, z = player.z + Math.sin(a) * r;
+  const d = Math.hypot(x, z);
+  if (d > WORLD) { x *= WORLD / d; z *= WORLD / d; }
+  const g = makeDraugr(), sc = rand(1.0, 1.15);
+  g.scale.setScalar(sc);
+  scene.add(g);
+  enemies.push({
+    g, x, z, y: H(x, z), vx: 0, vz: 0, hp: T.enemyHp, h: 0, vh: 0, stun: 0, flash: 0, dying: 0, atk: 0.5, atkAnim: 0,
+    speed: rand(3, 4.6) + Math.min(score * 0.04, 1.6), phase: rand(0, 6.28)
+  });
+}
+
+function removeEnemy(e) {
+  scene.remove(e.g);
+  e.g.userData.mats.forEach(m => m.dispose());
+}
+
+function damageEnemy(e, dmg, px, pz, point, quiet = false) {
+  if (e.dying) return;
+  e.hp -= dmg; e.flash = 1; e.stun = quiet ? 0.2 : 0.4; e.vx += px; e.vz += pz;
+  if (dmg >= 45) e.vh = Math.max(e.vh || 0, 5 + Math.min(dmg, 160) * 0.035);
+  burst(point, quiet ? 4 : 16, 0xbfe4ff, 6);
+  if (!quiet) {
+    sfx.hit();
+    hitstop = Math.max(hitstop, e.hp <= 0 ? 0.07 : 0.04);
+    shake = Math.max(shake, 0.18);
+  }
+  if (e.hp <= 0) {
+    e.dying = 0.001; score++;
+    burst(point, 28, 0x9fe0ff, 8);
+    sfx.die();
+  }
+}
+
+// Ground blast: used when Mjolnir lands and when you land hard
+function groundBlast(p, radius, dmg) {
+  shockwave(p, 0xcfeaff, radius);
+  burst(p, 26, 0xcfeaff, 9);
+  for (const e of enemies) {
+    if (e.dying) continue;
+    const dx = e.x - p.x, dz = e.z - p.z, d = Math.hypot(dx, dz);
+    if (d > radius) continue;
+    const k = (radius - d) / (d || 1) * 1.6;
+    damageEnemy(e, Math.round(dmg * (1 - 0.5 * d / radius)), dx * k, dz * k, new THREE.Vector3(e.x, e.y + 1.1, e.z));
+  }
+}
+function landSlam(speed) {
+  _p0.set(player.x, H(player.x, player.z) + 0.1, player.z);
+  groundBlast(_p0, 5 + Math.min(speed - 13, 12) * 0.35, 90);
+  shake = Math.max(shake, Math.min(1, speed / 25));
+  flash = Math.max(flash, 0.2);
+  sfx.thud();
+}
+
+// Lightning forks from a strike to the nearest draugr
+function forkBolts(point, n, range, dmg) {
+  const list = enemies
+    .filter(e => !e.dying && Math.hypot(e.x - point.x, e.z - point.z) < range)
+    .sort((a, b) => Math.hypot(a.x - point.x, a.z - point.z) - Math.hypot(b.x - point.x, b.z - point.z))
+    .slice(0, n);
+  const o = new THREE.Vector3(point.x, point.y + 1.5, point.z);
+  for (const e of list) {
+    const c = new THREE.Vector3(e.x, e.y + 1.1, e.z);
+    addBolt(o, c, 0.07, 0.3, false, 4);
+    damageEnemy(e, dmg, 0, 0, c);
+  }
+}
+
+// Throws drift toward a draugr near the crosshair
+function assistDir(start, dir) {
+  let best = null, bestCos = 0.985;
+  for (const e of enemies) {
+    if (e.dying) continue;
+    _d.set(e.x - start.x, e.y + 1.1 - start.y, e.z - start.z);
+    const dist = _d.length();
+    if (dist > 70 || dist < 2) continue;
+    const c = _d.dot(dir) / dist;
+    if (c > bestCos) { bestCos = c; best = e; }
+  }
+  if (best) dir.set(best.x - start.x, best.y + 1.1 - start.y, best.z - start.z).normalize();
+}
+
+// Mjolnir bounces from one draugr to the next
+function rebound(from) {
+  const h = hammer;
+  let best = null, bd = 22;
+  for (const e of enemies) {
+    if (e.dying || h.hit.has(e) || e === from) continue;
+    const d = Math.hypot(e.x - h.pos.x, e.z - h.pos.z);
+    if (d < bd) { bd = d; best = e; }
+  }
+  if (!best) return;
+  h.dir.set(best.x - h.pos.x, best.y + 1.1 - h.pos.y, best.z - h.pos.z).normalize();
+  h.bounces--;
+  h.traveled = Math.max(0, h.traveled - 12);
+  burst(h.pos, 10, 0xffe0a0, 6);
+}
+
+// Hits everything in a cone in front of the player
+function meleeHit(range, minDot, dmg, push, doChain) {
+  camBasis();
+  const fl = Math.hypot(_f.x, _f.z) || 1, nx = _f.x / fl, nz = _f.z / fl;
+  let hits = 0;
+  for (const e of enemies) {
+    if (e.dying) continue;
+    const dx = e.x - player.x, dz = e.z - player.z, d = Math.hypot(dx, dz);
+    if (d > range || Math.abs(e.y - player.y) > 2.6) continue;
+    if (d > 0.9 && (dx * nx + dz * nz) / d < minDot) continue;
+    hits++;
+    const c = new THREE.Vector3(e.x, e.y + 1.2, e.z);
+    damageEnemy(e, dmg, (dx / (d || 1) * 0.6 + nx * 0.8) * push, (dz / (d || 1) * 0.6 + nz * 0.8) * push, c);
+    if (doChain) chain(e, c);
+  }
+  return hits;
+}
+
+function segClosest(a, b, p, out) {
+  _ab.subVectors(b, a);
+  const l = _ab.lengthSq();
+  const t = l > 1e-8 ? clamp(_ap.subVectors(p, a).dot(_ab) / l, 0, 1) : 0;
+  out.copy(a).addScaledVector(_ab, t);
+  return out.distanceToSquared(p);
+}
+
+function sweepEnemies(a, b, dmg, returning) {
+  let last = null;
+  for (const e of enemies) {
+    if (e.dying || hammer.hit.has(e)) continue;
+    _ec.set(e.x, e.y + 1.1, e.z);
+    if (segClosest(a, b, _ec, _cp) < 1.5) {
+      hammer.hit.add(e); last = e;
+      let px, pz;
+      if (returning) {
+        px = _ec.x - _cp.x; pz = _ec.z - _cp.z;
+        const l = Math.hypot(px, pz) || 1;
+        px = px / l * 5 + hammer.dir.x * 3; pz = pz / l * 5 + hammer.dir.z * 3;
+      } else { px = hammer.dir.x * 9; pz = hammer.dir.z * 9; }
+      const hitPoint = _ec.clone();
+      damageEnemy(e, dmg, px, pz, hitPoint);
+      chain(e, hitPoint, hammer.charge > 0 ? 4 : 2);
+    }
+  }
+  return last;
+}
+
+function chain(from, c0, n = 3) {
+  const cand = enemies
+    .filter(e => e !== from && !e.dying && Math.hypot(e.x - from.x, e.z - from.z) < 14)
+    .sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z))
+    .slice(0, n);
+  for (const e of cand) {
+    const c1 = new THREE.Vector3(e.x, e.y + 1.1, e.z);
+    addBolt(c0, c1, 0.05, 0.25, false, 3);
+    damageEnemy(e, 45, 0, 0, c1);
+  }
+}
+
+function hurtPlayer(n) {
+  player.hp -= n; lastHurt = time; hurtA = 1;
+  shake = Math.max(shake, 0.35);
+  sfx.hurt();
+  if (player.hp <= 0) defeat();
+}
+function defeat() {
+  if (fly.on) endFlight();
+  whirl.holding = false; whirl.active = false; swing.active = false; punch.active = false;
+  player.hp = 100; score = 0;
+  for (const e of enemies) removeEnemy(e);
+  enemies.length = 0;
+  toast('You fell, and Odin sent you back. Score reset.');
+  const p = new THREE.Vector3(player.x + 4, 0, player.z + 4); p.y = H(p.x, p.z);
+  strikeAt(p, false);
+}
+
+function updateEnemies(dt) {
+  const alive = enemies.reduce((n, e) => n + (e.dying ? 0 : 1), 0);
+  const target = Math.min(6 + Math.floor(score / 3), T.maxEnemies);
+  spawnTimer -= dt;
+  if (alive < target && spawnTimer <= 0) { spawnEnemy(); spawnTimer = T.spawnEvery; }
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i], g = e.g, ud = g.userData;
+    if (e.dying) {
+      e.dying += dt;
+      e.x += e.vx * dt; e.z += e.vz * dt;
+      const dmp = Math.pow(0.05, dt); e.vx *= dmp; e.vz *= dmp;
+      e.vh -= 24 * dt; e.h += e.vh * dt;
+      if (e.h < 0) { e.h = 0; e.vh = 0; }
+      e.y = H(e.x, e.z);
+      g.rotation.x = -Math.min(e.dying / 0.35, 1) * 1.5;
+      g.position.set(e.x, e.y + e.h - (e.dying > 0.6 ? (e.dying - 0.6) * 2 : 0), e.z);
+      if (e.dying > 1.2) { removeEnemy(e); enemies.splice(i, 1); }
+      continue;
+    }
+    const dx = player.x - e.x, dz = player.z - e.z, d = Math.hypot(dx, dz) || 1;
+    let moving = false;
+    if (e.stun > 0) e.stun -= dt;
+    else if (d > 1.9) { e.x += dx / d * e.speed * dt; e.z += dz / d * e.speed * dt; moving = true; }
+    else {
+      e.atk -= dt;
+      if (e.atk <= 0) { e.atk = 1.1; e.atkAnim = 1; hurtPlayer(T.enemyDmg); }
+    }
+    e.x += e.vx * dt; e.z += e.vz * dt;
+    const damp = Math.pow(0.02, dt); e.vx *= damp; e.vz *= damp;
+    for (const o of obstacles) {
+      const ox = e.x - o.x, oz = e.z - o.z, rr = o.r + 0.5, d2 = ox * ox + oz * oz;
+      if (d2 < rr * rr) { const dd = Math.sqrt(d2) || 0.01; e.x = o.x + ox / dd * rr; e.z = o.z + oz / dd * rr; }
+    }
+    for (const o of enemies) {
+      if (o === e || o.dying) continue;
+      const ox = e.x - o.x, oz = e.z - o.z, d2 = ox * ox + oz * oz;
+      if (d2 < 1.4 && d2 > 0.0001) { const dd = Math.sqrt(d2); e.x += ox / dd * dt * 2; e.z += oz / dd * dt * 2; }
+    }
+    e.y = H(e.x, e.z);
+    e.vh -= 24 * dt; e.h += e.vh * dt;
+    if (e.h < 0) { e.h = 0; e.vh = 0; }
+    if (e.h > 0.05) e.stun = Math.max(e.stun, 0.1);
+    e.atkAnim = Math.max(0, e.atkAnim - dt * 3.5);
+    e.ram = Math.max(0, (e.ram || 0) - dt);
+    if (moving) e.phase += dt * e.speed * 2.4;
+    const sw = moving ? 0.7 : 0.05;
+    ud.legL.rotation.x = Math.sin(e.phase) * sw; ud.legR.rotation.x = -Math.sin(e.phase) * sw;
+    ud.armL.rotation.x = -Math.sin(e.phase) * sw * 0.8;
+    ud.armR.rotation.x = Math.sin(e.phase) * sw * 0.5 - 0.5 - e.atkAnim * 1.6;
+    g.position.set(e.x, e.y + e.h + (moving ? Math.abs(Math.sin(e.phase)) * 0.06 : 0), e.z);
+    g.rotation.y = Math.atan2(dx, dz);
+    const f = e.flash;
+    if (f > 0 || e.lastFlash) { ud.mats.slice(0, 3).forEach(m => m.emissive.setRGB(f * 0.4, f * 0.6, f * 0.9)); }
+    e.lastFlash = f > 0; e.flash = Math.max(0, f - dt * 5);
+  }
+}
+
+// ---------- lightning strike ----------
+function strikeAt(point, charge) {
+  const top = new THREE.Vector3(point.x + rand(-5, 5), 90, point.z + rand(-5, 5));
+  addBolt(top, point, 0.14, 0.5, true, 5);
+  shockwave(point, 0x9fd0ff, 6);
+  scorch(point);
+  burst(point, 50, 0xcfeaff, 10);
+  burst(point, 24, 0xffffff, 5);
+  camBasis();
+  const dist = _o.distanceTo(point);
+  shake = Math.max(shake, clamp(1.1 - dist / 70, 0.25, 1));
+  flash = 1;
+  setTimeout(() => { flash = Math.max(flash, 0.85); }, 120);
+  setTimeout(() => { flash = Math.max(flash, 0.5); }, 260);
+  flashLight.position.set(point.x, point.y + 6, point.z);
+  sfx.thunder(dist);
+  for (const e of enemies) {
+    if (e.dying) continue;
+    const dx = e.x - point.x, dz = e.z - point.z, d = Math.hypot(dx, dz);
+    if (d < T.strikeRadius) {
+      const dmg = Math.round(160 - d * 10), k = (13 - d) / (d || 1);
+      damageEnemy(e, dmg, dx * k, dz * k, new THREE.Vector3(e.x, e.y + 1.1, e.z));
+    }
+  }
+  forkBolts(point, 5, 32, 70);
+  if (charge || (hammer.state !== 'held' && flyer.position.distanceTo(point) < 4)) chargeHammer();
+  lightningCd = T.strikeCd;
+  raise = 1;
+}
+
+function strikeAim() {
+  if (lightningCd > 0) return;
+  strikeAt(aimPoint(90).point, false);
+}
+
+function chargeStrike() {
+  if (lightningCd > 0) return;
+  const p = new THREE.Vector3();
+  if (hammer.state === 'held') {
+    camBasis();
+    p.set(_f.x, 0, _f.z).normalize().multiplyScalar(4.5).add(new THREE.Vector3(player.x, 0, player.z));
+    p.y = H(p.x, p.z);
+  } else p.copy(flyer.position);
+  strikeAt(p, true);
+}
+
+function ambientStrike() {
+  const a = rand(0, 6.28), r = rand(110, 150);
+  const p = new THREE.Vector3(player.x + Math.cos(a) * r, 0, player.z + Math.sin(a) * r);
+  p.y = H(p.x, p.z) - 3;
+  addBolt(new THREE.Vector3(p.x + rand(-10, 10), 110, p.z + rand(-10, 10)), p, 0.45, 0.4, true, 5);
+  flash = Math.max(flash, 0.55);
+  setTimeout(() => { flash = Math.max(flash, 0.35); }, 140);
+  sfx.thunder(r, 0.6);
+}
+
+// ---------- player ----------
+function updatePlayer(dt) {
+  // arrow-key look (fallback when the mouse can't be captured)
+  player.yaw += ((keys.ArrowLeft ? 1 : 0) - (keys.ArrowRight ? 1 : 0)) * 2.2 * dt;
+  player.pitch = clamp(player.pitch + ((keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0)) * 1.6 * dt, -1.5, 1.5);
+  if (time - lastHurt > T.regenDelay) player.hp = Math.min(100, player.hp + T.regen * dt);
+  if (fly.on) { updateFlight(dt); return; }
+
+  const f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const sprint = keys.ShiftLeft || keys.ShiftRight, sp = (sprint ? T.sprint : T.walk) * (whirl.active || beam.on ? 0.6 : 1);
+  const sn = Math.sin(player.yaw), cs = Math.cos(player.yaw);
+  let tx = -sn * f + cs * s, tz = -cs * f - sn * s;
+  if (hammer.state === 'lifting') { tx = 0; tz = 0; }
+  const l = Math.hypot(tx, tz);
+  if (l > 1) { tx /= l; tz /= l; }
+  const k = Math.min(1, (player.onGround ? 18 : 8) * dt);
+  player.vx += (tx * sp - player.vx) * k;
+  player.vz += (tz * sp - player.vz) * k;
+  player.x += player.vx * dt; player.z += player.vz * dt;
+
+  for (const o of obstacles) {
+    const dx = player.x - o.x, dz = player.z - o.z, rr = o.r + 0.5, d2 = dx * dx + dz * dz;
+    if (d2 < rr * rr && player.y < H(o.x, o.z) + o.h) { const d = Math.sqrt(d2) || 0.01; player.x = o.x + dx / d * rr; player.z = o.z + dz / d * rr; }
+  }
+  const dd = Math.hypot(player.x, player.z);
+  if (dd > WORLD) { player.x *= WORLD / dd; player.z *= WORLD / dd; }
+
+  if (keys.Space && !spaceUsed && player.onGround && hammer.state !== 'lifting') { player.vy = T.jump; player.onGround = false; }
+  const g = H(player.x, player.z);
+  player.vy -= T.gravity * dt;
+  player.y += player.vy * dt;
+  if (player.y <= g) { const hit = player.vy; if (!player.onGround && hit < -13) landSlam(-hit); player.y = g; player.vy = 0; player.onGround = true; }
+  else if (player.onGround && player.vy <= 0 && player.y - g < 0.4) { player.y = g; player.vy = 0; }
+  else player.onGround = false;
+
+  player.bobT += Math.hypot(player.vx, player.vz) * dt * 1.35;
+}
+
+function updateCamera() {
+  const moveAmt = Math.min(1, Math.hypot(player.vx, player.vz) / 7);
+  const bob = (player.onGround && !fly.on) ? Math.sin(player.bobT) * 0.05 * moveAmt : 0;
+  if (!fly.on) fly.roll *= 0.88;
+  camera.position.set(player.x, player.y + 1.7 + bob, player.z);
+  camera.rotation.set(player.pitch + camDip, player.yaw, fly.roll);
+  if (shake > 0) {
+    const a = shake * shake * 0.22 * SHAKE_SCALE;
+    camera.position.x += rand(-a, a) * 0.6; camera.position.y += rand(-a, a) * 0.6; camera.position.z += rand(-a, a) * 0.6;
+    camera.rotation.z += rand(-a, a) * 0.15;
+  }
+  const spd = Math.hypot(player.vx, player.vz);
+  const tf = 75 + (fly.on ? clamp(fly.speed / 100, 0, 1) * 28 : whirl.active ? whirl.power * 7 : clamp((spd - 9) / 8, 0, 1) * 6) * SHAKE_SCALE;
+  if (Math.abs(tf - camera.fov) > 0.02) { camera.fov += (tf - camera.fov) * 0.12; camera.updateProjectionMatrix(); }
+  sky.position.copy(camera.position);
+}
+
+// Whirl orbit: the hammer circles the hand on a vertical loop at the right of the screen
+const E1 = new THREE.Vector3(0.18, 1, 0).normalize(), E2 = new THREE.Vector3(0, 0, -1);
+const ORB_R = 0.72;
+const _orbD = new THREE.Vector3(), _orbT = new THREE.Vector3(), _orbZ = new THREE.Vector3();
+const _orbM = new THREE.Matrix4(), _orbQ = new THREE.Quaternion(), _qId = new THREE.Quaternion();
+const _nPos = new THREE.Vector3(), _oPos = new THREE.Vector3(), _wr = new THREE.Vector3();
+function orbit(phi) {
+  const c = Math.cos(phi), sn = Math.sin(phi);
+  _orbD.set(0, 0, 0).addScaledVector(E1, c).addScaledVector(E2, sn);
+  _orbT.set(0, 0, 0).addScaledVector(E1, -sn).addScaledVector(E2, c);
+  _orbZ.crossVectors(_orbT, _orbD);
+  _orbM.makeBasis(_orbT, _orbD, _orbZ);
+  _orbQ.setFromRotationMatrix(_orbM);
+}
+
+// Where the hand sits in each situation (camera space): p = position, r = rotation, g = grip
+const POSE = {
+  held:   { p: [0.55, -0.45, -0.8],   r: [-0.5, 0.3, 0.15],   g: 1 },
+  guard:  { p: [0.42, -0.34, -0.62],  r: [-0.2, -0.2, 0.05],  g: 1 },
+  reach:  { p: [0.4, -0.3, -0.75],    r: [-0.35, 0, -1.5708], g: 0 },
+  whirl:  { p: [0.55, -0.5, -0.55],   r: [0, 0, 0],           g: 1 },
+  fly:    { p: [0.2, -0.24, -0.7],    r: [-1.45, 0, -0.3],    g: 1 },
+  guardL: { p: [-0.42, -0.34, -0.62], r: [-0.2, 0.2, -0.05],  g: 1 },
+  reachL: { p: [-0.4, -0.3, -0.75],   r: [-0.35, 0, 1.5708],  g: 0 },
+  hideL:  { p: [-0.5, -1.2, -0.4],    r: [0, 0, 0],           g: 1 }
+};
+const LIFT = { p: [0, 0, 0], r: [0, 0, 0], g: 0 };
+const cur = { p: new THREE.Vector3(...POSE.held.p), r: new THREE.Vector3(...POSE.held.r), grip: 1, w: 0 };
+const curL = { p: new THREE.Vector3(...POSE.hideL.p), r: new THREE.Vector3(...POSE.hideL.r) };
+const _lg = new THREE.Vector3();
+const smooth = x => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+
+// Hand position while lifting Mjolnir out of the ground: reach, grab, heave, flip
+function liftPose() {
+  const t = lift.t;
+  if (t < 0.42) {
+    _lg.set(hammer.pos.x, hammer.pos.y + 0.45, hammer.pos.z);
+    camera.updateMatrixWorld();
+    camera.worldToLocal(_lg);
+    LIFT.p[0] = _lg.x; LIFT.p[1] = _lg.y; LIFT.p[2] = _lg.z;
+    LIFT.r[0] = -0.1; LIFT.r[1] = 0.15; LIFT.r[2] = 0.05;
+    LIFT.g = t < 0.3 ? 0 : 1;
+  } else {
+    const u = smooth((t - 0.5) / 0.45), H0 = POSE.held;
+    LIFT.p[0] = H0.p[0]; LIFT.p[1] = H0.p[1] - 0.3 * (1 - u); LIFT.p[2] = H0.p[2] + 0.1 * (1 - u);
+    LIFT.r[0] = H0.r[0] * u - 0.1 * (1 - u); LIFT.r[1] = H0.r[1] * u + 0.15 * (1 - u); LIFT.r[2] = H0.r[2] * u + 0.05 * (1 - u);
+    LIFT.g = 1;
+  }
+  return LIFT;
+}
+
+// Swing keyframes: [progress, x, y, z, rotX, rotY, rotZ], added on top of the held pose
+const SWING_KEYS = [
+  [ // overhead slam: lift the hammer up and back, then bring it down
+    [0, 0, 0, 0, 0, 0, 0], [0.3, 0.05, 0.34, 0.18, 0.95, 0, -0.1],
+    [0.5, -0.12, -0.18, -0.42, -1.55, -0.1, 0.05], [0.62, -0.1, -0.2, -0.38, -1.4, 0, 0], [1, 0, 0, 0, 0, 0, 0]
+  ],
+  [ // sweep: wind back to the right, cut across to the left
+    [0, 0, 0, 0, 0, 0, 0], [0.3, 0.3, 0.05, 0.2, 0.2, 0.9, -0.5],
+    [0.5, -0.55, -0.05, -0.38, -0.1, -1.15, 0.6], [0.65, -0.5, -0.02, -0.3, -0.1, -1.0, 0.5], [1, 0, 0, 0, 0, 0, 0]
+  ]
+];
+const _so = { px: 0, py: 0, pz: 0, rx: 0, ry: 0, rz: 0 };
+function swingOffset() {
+  _so.px = _so.py = _so.pz = _so.rx = _so.ry = _so.rz = 0;
+  if (!swing.active) return _so;
+  const kf = SWING_KEYS[swing.type], u = clamp(swing.t / swing.dur, 0, 1);
+  for (let i = 0; i < kf.length - 1; i++) {
+    const a = kf[i], b = kf[i + 1];
+    if (u >= a[0] && u <= b[0]) {
+      const k = smooth((u - a[0]) / (b[0] - a[0]));
+      _so.px = a[1] + (b[1] - a[1]) * k; _so.py = a[2] + (b[2] - a[2]) * k; _so.pz = a[3] + (b[3] - a[3]) * k;
+      _so.rx = a[4] + (b[4] - a[4]) * k; _so.ry = a[5] + (b[5] - a[5]) * k; _so.rz = a[6] + (b[6] - a[6]) * k;
+      break;
+    }
+  }
+  return _so;
+}
+const _po = { x: 0, y: 0, z: 0 };
+function punchOffset(h) {
+  _po.x = _po.y = _po.z = 0;
+  if (!punch.active || punch.hand !== h) return _po;
+  const u = clamp(punch.t / punch.dur, 0, 1);
+  const p = u < 0.35 ? 1 - Math.pow(1 - u / 0.35, 3) : 1 - smooth((u - 0.35) / 0.65);
+  const sc = punch.heavy ? 1.25 : 1;
+  _po.x = (h === 0 ? -1 : 1) * 0.26 * p * sc; _po.y = 0.05 * p; _po.z = -0.62 * p * sc;
+  return _po;
+}
+
+function placeForearm(S, r) {
+  r.updateMatrix();
+  _wr.set(S.mirror ? -0.02 : 0.02, -0.04, 0.13).applyMatrix4(r.matrix);
+  _d.subVectors(_wr, S.shoulder).normalize();
+  S.forearm.position.copy(_wr);
+  S.forearm.quaternion.setFromUnitVectors(Y, _d);
+}
+
+function updateRig(dt) {
+  handKick = Math.max(0, handKick - dt * 3.2);
+  handRecoil = Math.max(0, handRecoil - dt * 6);
+  heldPop = Math.max(0, heldPop - dt * 6);
+  raise = Math.max(0, raise - dt * 2.2);
+  beamAmt += ((beam.on ? 1 : 0) - beamAmt) * (1 - Math.exp(-14 * dt));
+  const st = hammer.state, lifting = st === 'lifting';
+
+  let pose;
+  if (fly.on) pose = POSE.fly;
+  else if (whirl.active) pose = POSE.whirl;
+  else if (st === 'held') pose = POSE.held;
+  else if (lifting) pose = liftPose();
+  else if (st === 'windup' || st === 'recalling') pose = POSE.reach;
+  else pose = beam.on ? POSE.reach : POSE.guard;
+
+  const k = 1 - Math.exp(-(lifting ? 24 : 16) * dt);
+  cur.p.x += (pose.p[0] - cur.p.x) * k; cur.p.y += (pose.p[1] - cur.p.y) * k; cur.p.z += (pose.p[2] - cur.p.z) * k;
+  cur.r.x += (pose.r[0] - cur.r.x) * k; cur.r.y += (pose.r[1] - cur.r.y) * k; cur.r.z += (pose.r[2] - cur.r.z) * k;
+  cur.grip += (pose.g - cur.grip) * (1 - Math.exp(-(pose.g > cur.grip ? 28 : 14) * dt));
+  cur.w += ((whirl.active ? 1 : 0) - cur.w) * (1 - Math.exp(-18 * dt));
+  setGrip(cur.grip);
+  R.core.visible = !held.visible && cur.grip > 0.6;
+
+  // left hand only comes up when the right hand has no hammer
+  const leftOut = !fly.on && !whirl.active && st !== 'held' && !lifting;
+  const lp = leftOut ? (beam.on ? POSE.reachL : POSE.guardL) : POSE.hideL;
+  curL.p.x += (lp.p[0] - curL.p.x) * k; curL.p.y += (lp.p[1] - curL.p.y) * k; curL.p.z += (lp.p[2] - curL.p.z) * k;
+  curL.r.x += (lp.r[0] - curL.r.x) * k; curL.r.y += (lp.r[1] - curL.r.y) * k; curL.r.z += (lp.r[2] - curL.r.z) * k;
+
+  // look down while reaching for the hammer, then back up
+  camDip += ((lifting && lift.t < 0.85 ? -0.45 : 0) - camDip) * (1 - Math.exp(-7 * dt));
+
+  const moveAmt = fly.on ? 0 : Math.min(1, Math.hypot(player.vx, player.vz) / 7);
+  const bx = Math.cos(player.bobT * 0.5) * 0.012 * moveAmt, by = Math.abs(Math.sin(player.bobT)) * 0.018 * moveAmt;
+  const idle = Math.sin(time * 1.5) * 0.006;
+  const jx = st === 'windup' ? rand(-0.012, 0.012) : 0, jy = st === 'windup' ? rand(-0.012, 0.012) : 0;
+  const so = swingOffset(), po = punchOffset(0), pl = punchOffset(1);
+  const rs = raise > 0 ? Math.sin(Math.PI * Math.sqrt(1 - raise)) : 0;   // hand lifts when calling lightning
+
+  rig.position.set(
+    cur.p.x + bx + jx + so.px + po.x + (beamAmt > 0.05 ? rand(-0.006, 0.006) * beamAmt : 0),
+    cur.p.y + idle + by + jy + so.py + po.y + handKick * 0.05 - handRecoil * 0.05 + rs * 0.28 + beamAmt * 0.06,
+    cur.p.z + so.pz + po.z - handKick * 0.28 + handRecoil * 0.14 - beamAmt * 0.2
+  );
+  rig.rotation.set(
+    cur.r.x + so.rx - handKick * 0.7 + handRecoil * 0.25 + rs * 0.4 - beamAmt * 0.45,
+    cur.r.y + so.ry,
+    cur.r.z + so.rz + (hammer.charge > 0 ? Math.sin(time * 40) * 0.015 : 0)
+  );
+  rigL.position.set(
+    curL.p.x - bx + pl.x,
+    curL.p.y + Math.sin(time * 1.5 + 1) * 0.006 + by + pl.y + rs * 0.28 + beamAmt * 0.06,
+    curL.p.z + pl.z - beamAmt * 0.2
+  );
+  rigL.rotation.set(curL.r.x + rs * 0.4, curL.r.y, curL.r.z);
+  rigL.visible = L.forearm.visible = curL.p.y > -1.0;
+
+  // hammer in the rig: sits in the fist, orbits the hand while spinning, or flips over when lifted
+  orbit(whirl.phi);
+  const a = lifting ? lift.psi : 0, hs = lifting ? lift.scale : 0.9, off = 0.45 * hs;
+  _nPos.set(0, off * Math.cos(a), off * Math.sin(a)).lerp(_oPos.copy(_orbD).multiplyScalar(ORB_R), cur.w);
+  held.position.copy(_nPos);
+  _qFlip.setFromAxisAngle(X, a);
+  held.quaternion.copy(_qFlip).slerp(_orbQ, cur.w);
+  held.scale.setScalar(hs * (1 + heldPop * 0.18));
+
+  placeForearm(R, rig);
+  placeForearm(L, rigL);
+}
+
+// ---------- lifting Mjolnir out of the ground ----------
+function startLift() {
+  hammer.state = 'lifting';
+  lift.t = 0; lift.swapped = false; lift.popped = false; lift.psi = Math.PI; lift.scale = 1;
+  swing.active = false; punch.active = false;
+  sfx.windup();
+}
+function updateLift(dt) {
+  const h = hammer, hp = h.pos;
+  lift.t += dt * 1.35;
+  const t = lift.t;
+  if (t < 0.5) {
+    // walk up to it, turn to face it, and turn its head toward you
+    const dx = hp.x - player.x, dz = hp.z - player.z, d = Math.hypot(dx, dz) || 1;
+    let dy = Math.atan2(-dx, -dz) - player.yaw;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+    player.yaw += dy * (1 - Math.exp(-10 * dt));
+    if (d > 1.15) { const mv = Math.min(d - 1.15, 5 * dt); player.x += dx / d * mv; player.z += dz / d * mv; }
+    _qa.setFromAxisAngle(Y, Math.atan2(player.x - hp.x, player.z - hp.z)).multiply(_qb.setFromAxisAngle(X, Math.PI));
+    flyer.quaternion.slerp(_qa, 1 - Math.exp(-8 * dt));
+  }
+  if (!lift.swapped && t >= 0.42) {   // fist closes around the handle
+    lift.swapped = true; flyer.visible = false; held.visible = true;
+    sfx.clunk(); shake = Math.max(shake, 0.25);
+  }
+  if (t >= 0.5 && t < 0.62) {         // tugging it free
+    _p0.set(hp.x, H(hp.x, hp.z) + 0.1, hp.z);
+    spawn(_p0, rand(-2, 2), rand(1, 3), rand(-2, 2), 0x7a6a50, 0.5);
+    spawn(_p0, rand(-2, 2), rand(1, 4), rand(-2, 2), 0xffe0a0, 0.4);
+    shake = Math.max(shake, 0.2);
+  }
+  if (!lift.popped && t >= 0.62) {    // it comes out of the ground
+    lift.popped = true;
+    _p0.set(hp.x, H(hp.x, hp.z) + 0.1, hp.z);
+    shockwave(_p0, 0xffd9a0, 3.5);
+    burst(_p0, 30, 0x7a6a50, 6); burst(_p0, 22, 0xffe0a0, 8);
+    sfx.thud(); shake = Math.max(shake, 0.5); flash = Math.max(flash, 0.2);
+  }
+  if (t > 0.7) {                      // flip it over into the carrying grip
+    const u = clamp((t - 0.7) / 0.5, 0, 1), c1 = 1.70158, c3 = c1 + 1;
+    const e = 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
+    lift.psi = Math.PI + Math.PI * e;
+    lift.scale = 1 - 0.1 * smooth(u);
+  }
+  if (t >= lift.dur) {
+    h.state = 'held'; lift.psi = 0;
+    h.charge = Math.max(h.charge, 3);
+    handRecoil = 0.7; heldPop = 0.8;
+    handWorld(_hand); burst(_hand, 26, 0x8fd0ff, 8, 0.3);
+    flash = Math.max(flash, 0.3); sfx.thunder(40, 0.45);
+  }
+}
+
+// ---------- melee: swing and punches ----------
+function startSwing() {
+  if (hammer.state !== 'held' || fly.on || (swing.active && swing.t / swing.dur < 0.6) || whirl.active || whirl.holding || beam.on) return;
+  swing.active = true; swing.t = 0; swing.hit = false;
+  swing.type = swing.next; swing.next = 1 - swing.next;
+  swing.dur = swing.type === 0 ? 0.4 : 0.36;
+  sfx.whoosh();
+}
+function swingImpact() {
+  const slam = swing.type === 0, charged = hammer.charge > 0;
+  meleeHit(slam ? 5 : 4.5, slam ? 0.3 : 0, (slam ? 140 : 110) * (charged ? 1.4 : 1), slam ? 11 : 14, true);
+  if (slam) meleeHit(13, 0.9, 70, 14, false);   // the slam sends a shockwave down the line
+  camBasis();
+  const fl = Math.hypot(_f.x, _f.z) || 1;
+  _p0.set(player.x + _f.x / fl * 2.2, 0, player.z + _f.z / fl * 2.2);
+  _p0.y = H(_p0.x, _p0.z) + 0.1;
+  if (slam) {
+    for (let i = 1; i <= 6; i++) {
+      _bc.set(player.x + _f.x / fl * i * 2, 0, player.z + _f.z / fl * i * 2);
+      _bc.y = H(_bc.x, _bc.z) + 0.1;
+      burst(_bc, 6, 0x7a6a50, 5);
+    }
+    shockwave(_p0, 0xffd9a0, 3.5); burst(_p0, 26, 0x7a6a50, 6); shake = Math.max(shake, 0.5); sfx.thud(); }
+  else { burst(_p0, 14, 0xffe0a0, 6); shake = Math.max(shake, 0.3); sfx.clunk(); }
+  if (charged) { burst(_p0, 20, 0x8fd0ff, 8); flash = Math.max(flash, 0.2); }
+}
+function updateSwing(dt) {
+  if (!swing.active) return;
+  swing.t += dt;
+  const u = swing.t / swing.dur;
+  if (!swing.hit && u >= 0.45) { swing.hit = true; swingImpact(); }
+  if (u >= 1) swing.active = false;
+}
+
+function doPunch() {
+  const st = hammer.state;
+  if (st === 'held' || st === 'lifting' || fly.on || punch.active || punch.cd > 0 || beam.on) return;
+  punch.active = true; punch.t = 0; punch.hit = false;
+  punch.combo = (time - punch.last < 0.9) ? punch.combo + 1 : 0;
+  punch.last = time;
+  punch.heavy = punch.combo % 3 === 2;
+  punch.hand = punch.combo % 2 === 0 ? 0 : 1;
+  if (st === 'windup' || st === 'recalling') punch.hand = 1;   // the right hand is busy calling Mjolnir
+  punch.dur = punch.heavy ? 0.38 : 0.28;
+  sfx.swish();
+}
+function updatePunch(dt) {
+  punch.cd = Math.max(0, punch.cd - dt);
+  if (punch.holding && !punch.active) doPunch();
+  if (!punch.active) return;
+  punch.t += dt;
+  const u = punch.t / punch.dur;
+  if (!punch.hit && u >= 0.35) {
+    punch.hit = true;
+    const hits = meleeHit(punch.heavy ? 3.3 : 3, 0.5, punch.heavy ? 90 : 45, punch.heavy ? 14 : 8, false);
+    if (hits && punch.heavy) shake = Math.max(shake, 0.35);
+  }
+  if (u >= 1) { punch.active = false; punch.cd = 0.04; }
+}
+
+function primaryDown() {
+  if (hammer.state === 'held') startHold();
+  else punch.holding = true;
+}
+function primaryUp() {
+  releaseHold();
+  punch.holding = false;
+}
+
+function startHold() {
+  if (whirl.holding || hammer.state !== 'held' || fly.on || swing.active || beam.on) return;
+  whirl.holding = true; whirl.t = 0;
+}
+function releaseHold() {
+  if (!whirl.holding) return;
+  whirl.holding = false;
+  const p = whirl.active ? whirl.power : 0;
+  whirl.active = false; loopStop(whirlLoop);
+  if (hammer.state === 'held' && !fly.on) throwHammer(p);
+}
+
+function updateWhirl(dt) {
+  if (whirl.holding && hammer.state === 'held' && !fly.on) {
+    whirl.t += dt;
+    if (!whirl.active && whirl.t > 0.18) { whirl.active = true; whirl.power = 0; sfx.whoosh(); }
+  } else if (whirl.active) whirl.active = false;
+
+  if (whirl.active) {
+    whirl.power = Math.min(1, whirl.power + dt / 1.4);
+    whirl.phi += (7 + whirl.power * 19) * dt;
+    held.getWorldPosition(_p0);
+    spawn(_p0, rand(-1, 1), rand(-1, 1), rand(-1, 1), whirl.power > 0.8 ? 0x8fd0ff : 0xcfd8e8, 0.25, 0);
+    if (whirl.power > 0.8 && Math.random() < 0.25) {
+      const a = _p0.clone();
+      addBolt(a, a.clone().add(new THREE.Vector3(rand(-1.5, 1.5), rand(-1.5, 1.5), rand(-1.5, 1.5))), 0.015, 0.08, false, 3);
+    }
+    loopSet(whirlLoop, 250 + whirl.power * 1100, 0.14 + whirl.power * 0.35 * (0.65 + 0.35 * Math.sin(whirl.phi)), 1.5);
+  } else loopStop(whirlLoop);
+}
+
+// ---------- flight ----------
+function startFlight() {
+  const p = whirl.active ? whirl.power : 0.5;
+  camBasis();
+  fly.on = true; fly.roll = 0;
+  fly.speed = 16 + p * 24;
+  fly.v.copy(_f).multiplyScalar(fly.speed);
+  if (fly.v.y < 6) fly.v.y = 6;
+  whirl.holding = false; whirl.active = false; loopStop(whirlLoop);
+  player.onGround = false; player.vy = 0;
+  _p0.set(player.x, H(player.x, player.z), player.z);
+  shockwave(_p0, 0xcfeaff, 5);
+  burst(_p0.setY(_p0.y + 0.3), 40, 0xcfeaff, 9);
+  shake = Math.max(shake, 0.6); flash = Math.max(flash, 0.4);
+  sfx.thunder(8, 0.6); sfx.whoosh();
+  toast('Flying. Press Space to land.');
+}
+function endFlight() {
+  if (!fly.on) return;
+  fly.on = false;
+  player.vx = fly.v.x * 0.5; player.vz = fly.v.z * 0.5;
+  player.vy = clamp(fly.v.y * 0.4, -6, 8);
+  player.onGround = false;
+  loopStop(windLoop);
+}
+
+function updateFlight(dt) {
+  camBasis();
+  const boost = keys.ShiftLeft || keys.ShiftRight;
+  let target = keys.KeyW ? 60 : keys.KeyS ? 8 : 34;
+  if (boost) target *= 1.8;
+  fly.speed += (target - fly.speed) * (1 - Math.exp(-1.6 * dt));
+  _d.copy(_f).multiplyScalar(fly.speed);
+  const strafe = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  if (strafe) _d.addScaledVector(_r, strafe * 9);
+  fly.v.lerp(_d, 1 - Math.exp(-3 * dt));
+  player.x += fly.v.x * dt; player.y += fly.v.y * dt; player.z += fly.v.z * dt;
+  fly.roll += (-strafe * 0.22 - fly.roll) * (1 - Math.exp(-4 * dt));
+
+  const dd = Math.hypot(player.x, player.z), lim = WORLD + 40;
+  if (dd > lim) { player.x *= lim / dd; player.z *= lim / dd; }
+  if (player.y > 85) { player.y = 85; if (fly.v.y > 0) fly.v.y = 0; }
+
+  // ground: skim when shallow, lightning landing when diving
+  const g = H(player.x, player.z);
+  if (player.y < g + 0.2) {
+    if (fly.v.y < -15) {
+      const pt = new THREE.Vector3(player.x, g, player.z);
+      player.y = g;
+      endFlight();
+      strikeAt(pt, true);
+      return;
+    }
+    player.y = g + 0.2;
+    if (fly.v.y < 0) fly.v.y *= 0.1;
+    if (fly.speed > 10) {
+      spawn(_p0.set(player.x, g + 0.1, player.z), rand(-2, 2), rand(1, 4), rand(-2, 2), 0xffe0a0, 0.4);
+      shake = Math.max(shake, 0.12);
+    }
+  }
+
+  // trees and rocks: crash
+  for (const o of obstacles) {
+    const dx = player.x - o.x, dz = player.z - o.z, rr = o.r + 0.7;
+    if (dx * dx + dz * dz < rr * rr && player.y + 1.2 < H(o.x, o.z) + o.h) {
+      const d = Math.sqrt(dx * dx + dz * dz) || 0.01, sp = fly.speed;
+      player.x = o.x + dx / d * (rr + 0.1); player.z = o.z + dz / d * (rr + 0.1);
+      burst(_p0.set(player.x, player.y + 1.2, player.z), 20, 0xffe0a0, 7);
+      shake = Math.max(shake, 0.6); sfx.clunk();
+      endFlight();
+      if (sp > 14) hurtPlayer(6);
+      return;
+    }
+  }
+
+  // ram draugr with the hammer held out in front
+  const tx = player.x + _f.x * 1.9, ty = player.y + 1.6 + _f.y * 1.9, tz = player.z + _f.z * 1.9;
+  for (const e of enemies) {
+    if (e.dying || e.ram > 0) continue;
+    const dx = e.x - tx, dy = e.y + 1.1 - ty, dz = e.z - tz;
+    if (dx * dx + dy * dy + dz * dz < 4.8) {
+      e.ram = 0.5;
+      const l = Math.hypot(fly.v.x, fly.v.z) || 1;
+      damageEnemy(e, Math.round(50 + fly.speed * 1.5), fly.v.x / l * 12, fly.v.z / l * 12, new THREE.Vector3(e.x, e.y + 1.1, e.z));
+    }
+  }
+
+  // effects
+  held.getWorldPosition(_p0);
+  spawn(_p0, rand(-2, 2), rand(-2, 2), rand(-2, 2), 0x8fd0ff, 0.4, 0);
+  for (let i = 0; i < 2; i++) {
+    _hand.copy(_o).addScaledVector(_f, rand(3, 9)).addScaledVector(_r, rand(-5, 5)).addScaledVector(_u, rand(-3, 3));
+    spawn(_hand, -fly.v.x * 0.6, -fly.v.y * 0.6, -fly.v.z * 0.6, 0x9fb3d4, 0.3, 0);
+  }
+  loopSet(windLoop, 500 + fly.speed * 25, 0.1 + Math.min(1, fly.speed / 60) * 0.4, 0.8);
+}
+
+// ---------- lightning beam ----------
+// A persistent bundle of glowing cylinders, re-jagged every frame while Z is held
+const BEAM_SEGS = 32;
+const beamGroup = new THREE.Group();
+beamGroup.visible = false;
+scene.add(beamGroup);
+const beamMats = [0xffffff, 0x5aa8ff, 0x3a7bff].map((c, i) => new THREE.MeshBasicMaterial({
+  color: c, transparent: true, opacity: [1, 0.55, 0.18][i], blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+}));
+const beamWidths = [0.05, 0.2, 0.55];
+const beamSegs = beamMats.map(m => {
+  const arr = [];
+  for (let i = 0; i < BEAM_SEGS; i++) { const mesh = new THREE.Mesh(boltGeo, m); mesh.frustumCulled = false; beamGroup.add(mesh); arr.push(mesh); }
+  return arr;
+});
+const beamLight = new THREE.PointLight(0x9fd0ff, 0, 28, 2);
+scene.add(beamLight);
+const _bo = new THREE.Vector3(), _be = new THREE.Vector3(), _bd = new THREE.Vector3(), _bc = new THREE.Vector3();
+
+function placeBeam(pts, w) {
+  for (let l = 0; l < 3; l++) {
+    for (let i = 0; i < BEAM_SEGS; i++) {
+      const m = beamSegs[l][i];
+      if (i >= pts.length - 1) { m.visible = false; continue; }
+      _bd.subVectors(pts[i + 1], pts[i]);
+      const len = _bd.length() || 0.001;
+      m.visible = true;
+      m.position.addVectors(pts[i], pts[i + 1]).multiplyScalar(0.5);
+      m.quaternion.setFromUnitVectors(Y, _bd.divideScalar(len));
+      m.scale.set(beamWidths[l] * w, len, beamWidths[l] * w);
+    }
+  }
+}
+
+// first thing the beam runs into: ground, tree or rock (it passes through draugr)
+function rayWorld(o, f, maxD, out) {
+  for (let t = 1; t <= maxD; t += 1) {
+    out.copy(o).addScaledVector(f, t);
+    const g = H(out.x, out.z);
+    if (out.y < g) { out.y = g + 0.05; return true; }
+    for (const ob of obstacles) {
+      const dx = out.x - ob.x, dz = out.z - ob.z, rr = ob.r + 0.2;
+      if (dx * dx + dz * dz < rr * rr && out.y < H(ob.x, ob.z) + ob.h) return true;
+    }
+  }
+  out.copy(o).addScaledVector(f, maxD);
+  return false;
+}
+
+function updateBeam(dt) {
+  const canFire = !whirl.active && !whirl.holding && hammer.state !== 'lifting' && !swing.active;
+  const want = keys.KeyZ && canFire && !beam.locked && beam.energy > 0;
+  if (want) {
+    if (!beam.on) { beam.on = true; beam.tick = 0; sfx.zap(); }
+    beam.energy = Math.max(0, beam.energy - dt * T.beamDrain);
+    beam.regen = 0.6;
+    if (beam.energy <= 0) beam.locked = true;
+  } else {
+    beam.on = false;
+    beam.regen -= dt;
+    if (beam.regen <= 0) beam.energy = Math.min(1, beam.energy + dt * 0.45);
+    if (beam.locked && beam.energy > 0.25) beam.locked = false;
+  }
+  if (!beam.on) {
+    beamGroup.visible = false; beamLight.intensity = 0;
+    loopStop(beamLoop); loopStop(beamHum);
+    return;
+  }
+
+  camBasis();
+  if (held.visible) held.localToWorld(_bo.set(0, 0.35, 0));
+  else camera.localToWorld(_bo.copy(rig.position));
+  _bo.addScaledVector(_f, 0.4);
+  const hit = rayWorld(_o, _f, 60, _be);
+
+  beamGroup.visible = true;
+  placeBeam(jag(_bo, _be, 5), 0.8 + Math.random() * 0.5);
+  beamMats[0].opacity = 0.75 + Math.random() * 0.25;
+  beamMats[1].opacity = 0.4 + Math.random() * 0.25;
+  beamMats[2].opacity = 0.12 + Math.random() * 0.1;
+
+  // damage everything the beam passes through, ten times a second
+  beam.tick -= dt;
+  if (beam.tick <= 0) {
+    beam.tick = 0.1;
+    const dmg = T.beamDmg * (hammer.charge > 0 ? 1.5 : 1);
+    for (const e of enemies) {
+      if (e.dying) continue;
+      _bc.set(e.x, e.y + 1.1, e.z);
+      if (segClosest(_bo, _be, _bc, _cp) < 2.0) {
+        const c = _bc.clone();
+        damageEnemy(e, dmg, _f.x * 1.5, _f.z * 1.5, c, true);
+        if (Math.random() < 0.35) {   // arc to a neighbour
+          for (const o of enemies) {
+            if (o === e || o.dying || Math.hypot(o.x - e.x, o.z - e.z) > 6) continue;
+            const c2 = new THREE.Vector3(o.x, o.y + 1.1, o.z);
+            addBolt(c, c2, 0.03, 0.08, false, 3);
+            damageEnemy(o, 6, 0, 0, c2, true);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // effects
+  if (hit) {
+    spawn(_be, rand(-3, 3), rand(1, 5), rand(-3, 3), 0xcfeaff, 0.4);
+    spawn(_be, rand(-3, 3), rand(1, 5), rand(-3, 3), 0xffe0a0, 0.35);
+    beam.scorch -= dt;
+    if (beam.scorch <= 0 && Math.abs(_be.y - H(_be.x, _be.z)) < 0.6) { beam.scorch = 0.35; scorch(_be); }
+  }
+  spawn(_bo, rand(-2, 2), rand(-2, 2), rand(-2, 2), 0x9fd0ff, 0.25, 0);
+  beamLight.position.set(_be.x, _be.y + 1.2, _be.z);
+  beamLight.intensity = 5 + Math.random() * 4;
+  shake = Math.max(shake, 0.1);
+  flash = Math.max(flash, rand(0.04, 0.14));
+  loopSet(beamLoop, 1800 + rand(-400, 400), 0.26 + rand(-0.08, 0.08), 0.8);
+  loopSet(beamHum, 220, 0.35, 0.7);
+}
+
+// ---------- ambience, hud ----------
+const el = {
+  flash: $('flash'), hurt: $('hurt'), hp: $('hpBar'), lt: $('ltBar'), ht: $('hammerTxt'),
+  score: $('scoreN'), cross: $('cross'), toast: $('toast'),
+  whirl: $('whirl'), whirlTxt: $('whirlTxt'), whirlBar: $('whirlBar'), prompt: $('prompt'), beam: $('beamBar')
+};
+let toastTimer = 0;
+function toast(msg) {
+  el.toast.textContent = msg; el.toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.toast.classList.remove('show'), 3500);
+}
+
+function updateAmbience(dt) {
+  flash = Math.max(0, flash - dt * 2.4);
+  const fl = flash * FLASH_SCALE;
+  skyU.flash.value = fl; skyU.time.value = time;
+  hemi.intensity = 0.55 + fl * 1.2;
+  flashLight.intensity = fl * 14;
+  scene.fog.color.copy(fogBase).lerp(fogFlash, fl * 0.55);
+  el.flash.style.opacity = (flash * 0.22 * FLASH_SCALE).toFixed(3);
+  hurtA = Math.max(0, hurtA - dt * 1.6);
+  el.hurt.style.opacity = hurtA.toFixed(3);
+  shake = Math.max(0, shake - dt * 2.2);
+  lightningCd = Math.max(0, lightningCd - dt);
+  ambientTimer -= dt;
+  if (ambientTimer <= 0) { ambientTimer = rand(7, 15); ambientStrike(); }
+}
+
+function updateHud() {
+  el.hp.style.transform = 'scaleX(' + clamp(player.hp / 100, 0, 1).toFixed(3) + ')';
+  el.lt.style.transform = 'scaleX(' + (1 - lightningCd / T.strikeCd).toFixed(3) + ')';
+  let t;
+  if (fly.on) t = 'Flying with Mjolnir, Space to land';
+  else if (whirl.active) t = 'Spinning Mjolnir';
+  else if (hammer.state === 'held') t = 'Mjolnir in hand';
+  else if (hammer.state === 'recalling' || hammer.state === 'windup') t = 'Mjolnir returning';
+  else if (hammer.state === 'lifting') t = 'Lifting Mjolnir';
+  else t = 'Mjolnir away. R recalls it, left click punches';
+  if (hammer.charge > 0) t += ', charged';
+  if (el.ht.textContent !== t) el.ht.textContent = t;
+  el.score.textContent = score;
+  el.cross.classList.toggle('away', hammer.state !== 'held');
+  el.beam.style.transform = 'scaleX(' + beam.energy.toFixed(3) + ')';
+  el.beam.style.opacity = beam.locked ? 0.45 : 1;
+  el.whirl.hidden = !whirl.active;
+  el.prompt.hidden = !(hammer.state === 'stuck' && hammer.landT >= 0.2 &&
+    Math.hypot(player.x - hammer.pos.x, player.z - hammer.pos.z) < 3.4 && Math.abs(player.y - hammer.pos.y) < 3);
+  if (whirl.active) {
+    const w = whirl.power;
+    const msg = w < 0.45 ? 'Spinning up' : w < 0.8 ? 'Space to fly, release to throw' : 'Full power. Space to fly, release to throw';
+    if (el.whirlTxt.textContent !== msg) el.whirlTxt.textContent = msg;
+    el.whirlBar.style.transform = 'scaleX(' + w.toFixed(3) + ')';
+  }
+}
+
+// ---------- input ----------
+const overlay = $('overlay'), goBtn = $('go');
+function setPlaying(v) {
+  playing = v;
+  overlay.hidden = v;
+  if (!v) { whirl.holding = false; whirl.active = false; punch.holding = false; loopStop(whirlLoop); loopStop(windLoop);
+    beam.on = false; beamGroup.visible = false; beamLight.intensity = 0; loopStop(beamLoop); loopStop(beamHum); }
+}
+goBtn.addEventListener('click', () => {
+  initAudio();
+  noLock = false;
+  setPlaying(true);
+  goBtn.textContent = 'Keep fighting';
+  try {
+    const r = canvas.requestPointerLock();
+    if (r && r.catch) r.catch(() => lockBlocked());
+  } catch (e) { lockBlocked(); }
+});
+function lockBlocked() {
+  noLock = true;
+  toast('Mouse capture is blocked here. Use the arrow keys to look, or open the file in its own tab.');
+}
+document.addEventListener('pointerlockerror', lockBlocked);
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement !== canvas && !noLock && playing) setPlaying(false);
+});
+
+addEventListener('mousemove', e => {
+  if (!playing || document.pointerLockElement !== canvas) return;
+  player.yaw -= e.movementX * 0.0022;
+  player.pitch = clamp(player.pitch - e.movementY * 0.0022, -1.5, 1.5);
+});
+addEventListener('mousedown', e => {
+  if (!playing) return;
+  if (e.button === 0) primaryDown();
+  else if (e.button === 2) { if (hammer.state === 'held') startSwing(); else recall(); }
+});
+addEventListener('mouseup', e => { if (e.button === 0) primaryUp(); });
+addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyM' && master) { muted = !muted; master.gain.value = muted ? 0 : 0.75; toast(muted ? 'Sound off' : 'Sound on'); }
+  if (!playing || e.repeat) return;
+  if (e.code === 'Space') {
+    spaceUsed = false;
+    if (fly.on) { endFlight(); spaceUsed = true; }
+    else if (whirl.active && whirl.power >= 0.45) { startFlight(); spaceUsed = true; }
+    else if (hammer.state === 'held' && !swing.active && !whirl.holding && time - lastSpace < 0.3) { startFlight(); spaceUsed = true; }
+    lastSpace = time;
+  }
+  else if (e.code === 'KeyE') strikeAim();
+  else if (e.code === 'KeyQ') chargeStrike();
+  else if (e.code === 'KeyR') recall();
+  else if (e.code === 'KeyF') primaryDown();
+  else if (e.code === 'KeyV') startSwing();
+});
+addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'Space') spaceUsed = false;
+  if (e.code === 'KeyF') primaryUp();
+});
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ---------- main loop ----------
+for (let i = 0; i < 6; i++) spawnEnemy();
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  if (playing) {
+    if (hitstop > 0) { hitstop -= dt; dt *= 0.08; }
+    time += dt;
+    updatePlayer(dt);
+    updateWhirl(dt);
+    updateSwing(dt);
+    updatePunch(dt);
+    updateBeam(dt);
+    updateHammer(dt);
+    updateEnemies(dt);
+    updateParticles(dt);
+    updateBolts(dt);
+    updateFx(dt);
+    updateAmbience(dt);
+    updateRig(dt);
+    updateHud();
+  }
+  updateCamera();
+  renderer.render(scene, camera);
+}
+updateRig(0);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
