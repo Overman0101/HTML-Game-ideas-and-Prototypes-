@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>VOID — Swallow Everything, From Streets to Stars</title>
+<meta name="description" content="Steer a black hole through a street and swallow whatever fits. Every bite makes you bigger: bins, cars, houses, cities, mountains, planets, whole galaxies. Four chapters, one endless fall.">
+<meta name="theme-color" content="#2a1c18">
+<link rel="canonical" href="https://www.gptgames.dev/games/void.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.gptgames.dev/games/void.html">
+<meta property="og:title" content="VOID — Swallow Everything, From Streets to Stars">
+<meta property="og:description" content="Steer a black hole through a street and swallow whatever fits. Every bite makes you bigger: bins, cars, houses, cities, mountains, planets, whole galaxies.">
+<meta property="og:image" content="https://www.gptgames.dev/screenshots/screenshot_271.webp">
+<meta property="og:site_name" content="GPTGames.dev">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{--ink:#2a1c18;--paper:#f1e6cf;--paper2:#e4d6b8;--tom:#e8553d;--vio:#7a4dff;--pink:#ff4fa3;--h:72px;--sa-t:env(safe-area-inset-top,0px);--sa-b:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--ink);font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+canvas#stage{position:fixed;inset:0;display:block;touch-action:none;background:#7a736a}
+#grain{position:fixed;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.22;background-size:180px 180px}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+button:focus-visible{outline:3px solid var(--pink);outline-offset:3px}
+.scene{position:fixed;inset:0;display:none;pointer-events:none}
+.scene.on{display:block}
+.stamp{background:var(--paper);box-shadow:0 0 0 2.5px var(--ink),3px 4px 0 2.5px rgba(42,28,24,.55);border-radius:50%}
+
+/* hud */
+#hud{position:fixed;left:0;right:0;top:0;margin:0 auto;max-width:720px;padding:calc(10px + var(--sa-t)) 12px 0;display:none;justify-content:space-between;align-items:flex-start;pointer-events:none}
+body[data-mode=play] #hud,body[data-mode=pause] #hud,body[data-mode=closing] #hud{display:flex}
+#badge{position:relative;width:var(--h);height:var(--h);margin-top:4px;flex:none}
+#badge canvas{position:absolute;inset:0;width:100%;height:100%}
+#badge svg,#timer svg.rg{position:absolute;inset:0;width:100%;height:100%}
+#plate.flash{animation:pflash .8s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pflash{0%{transform:rotate(-.6deg) scale(1);background:var(--paper)}20%{transform:rotate(-2deg) scale(1.16);background:#ff9ed0}100%{transform:rotate(-.6deg) scale(1);background:var(--paper)}}
+#plate{margin-top:6px;filter:drop-shadow(0 0 7px rgba(42,28,24,.35));padding:6px 14px 8px 12px;border-radius:14px;display:flex;align-items:flex-end;background:var(--paper);box-shadow:0 0 0 2.5px var(--ink),3px 4px 0 2.5px rgba(42,28,24,.55);transform:rotate(-.6deg)}
+#odo{display:flex;align-items:flex-end;gap:1px}
+.cell{display:block;position:relative}
+.cell svg{display:block}
+.cell.pop{animation:digit .22s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes digit{0%{transform:translateY(7px) scale(.82);opacity:.35}100%{transform:none;opacity:1}}
+#badge.pop{animation:bpop .55s cubic-bezier(.2,.9,.3,1.5)}
+@keyframes bpop{0%{transform:scale(1)}30%{transform:scale(1.32) rotate(-6deg)}100%{transform:scale(1)}}
+#timer.gain{animation:tgain .6s cubic-bezier(.2,.9,.3,1.5)}
+@keyframes tgain{0%{transform:scale(1)}30%{transform:scale(1.25)}100%{transform:scale(1)}}
+#unit{font:800 18px/1 "Helvetica Neue",Arial,sans-serif;margin:0 0 5px 7px;letter-spacing:.01em;white-space:nowrap}
+#timer{position:relative;width:var(--h);height:var(--h);margin-top:4px;flex:none;pointer-events:auto;cursor:pointer;touch-action:manipulation}
+#tm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:1px;color:var(--ink)}
+#hud.low #tm{color:var(--tom);animation:pulse .5s ease-in-out infinite alternate}
+#hud.low #timer{animation:pulse .5s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.08)}}
+#pops{position:fixed;inset:0;pointer-events:none}
+
+/* chapter card */
+#card{position:fixed;left:0;right:0;top:15%;display:flex;justify-content:center;pointer-events:none;opacity:0}
+#card.on{animation:card 2.7s cubic-bezier(.2,.8,.2,1) both}
+#card small{display:block;margin-top:9px;font:700 clamp(12px,3.4vw,15px)/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.14em;opacity:.75;text-align:center}
+#slab{position:fixed;left:0;right:0;top:calc(24% );display:flex;justify-content:center;pointer-events:none;opacity:0}
+#slab.on{animation:slab 1.5s cubic-bezier(.2,.8,.2,1) both}
+#slab div{background:var(--ink);color:var(--paper);padding:9px 18px 9px 22px;border-radius:5px;box-shadow:4px 5px 0 var(--vio);font:800 clamp(12px,3.6vw,16px)/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;transform:rotate(1.2deg)}
+@keyframes slab{0%{opacity:0;transform:translateX(60vw)}14%{opacity:1;transform:translateX(-8px)}22%{transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+#card div{background:var(--paper);padding:14px 30px 14px 36px;border-radius:6px;box-shadow:0 0 0 3px var(--ink),7px 8px 0 3px rgba(42,28,24,.55);font:800 clamp(22px,7vw,40px)/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.3em;text-transform:uppercase;transform:rotate(-2.2deg)}
+@keyframes card{0%{opacity:0;transform:translateX(-80vw) rotate(-8deg)}14%{opacity:1;transform:translateX(14px) rotate(1deg)}20%{transform:none}78%{opacity:1;transform:none}100%{opacity:0;transform:translateX(70vw) rotate(6deg)}}
+
+/* thumb stick and first-run hand */
+#stick{position:fixed;width:0;height:0;pointer-events:none;opacity:0;transition:opacity .12s}
+#stick.on{opacity:1}
+#stick i{position:absolute;left:-48px;top:-48px;width:96px;height:96px;border-radius:50%;border:3px solid var(--ink);background:rgba(42,28,24,.14);box-shadow:0 0 0 3px rgba(241,230,207,.8)}
+#knob{position:absolute;left:-22px;top:-22px;width:44px;height:44px;border-radius:50%;background:var(--paper);box-shadow:0 0 0 3px var(--ink)}
+#hand{position:fixed;left:50%;top:70%;width:96px;height:96px;pointer-events:none;opacity:0;--dx:40px;--dy:-40px}
+#hand.on{opacity:1}
+#hand i{position:absolute;inset:0;border-radius:50%;border:3px solid var(--ink);background:rgba(42,28,24,.18);box-shadow:0 0 0 3px rgba(241,230,207,.85)}
+#hand b{position:absolute;left:26px;top:26px;width:44px;height:44px;border-radius:50%;background:var(--paper);box-shadow:0 0 0 3px var(--ink),0 0 0 6px rgba(241,230,207,.8);animation:hand 2s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes hand{0%,12%{transform:translate(0,0) scale(1)}22%{transform:translate(0,0) scale(.9)}68%,82%{transform:translate(var(--dx),var(--dy)) scale(.9)}100%{transform:translate(0,0) scale(1)}}
+
+/* title */
+#title{align-items:center;justify-content:space-between;flex-direction:column;padding:calc(7vh + var(--sa-t)) 20px calc(6vh + var(--sa-b));text-align:center}
+#title.on{display:flex;pointer-events:auto}
+#title:before{content:"";position:absolute;inset:0;pointer-events:none}
+#brand,#titlefoot{position:relative}
+#brand{background:var(--paper);padding:18px 26px 16px;border-radius:8px;box-shadow:0 0 0 3px var(--ink),6px 8px 0 3px rgba(42,28,24,.55);transform:rotate(-1.6deg)}
+#wordmark{display:flex;justify-content:center;align-items:flex-end;gap:4px}
+#tag{margin-top:12px;font:800 14px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.42em;text-transform:uppercase;color:var(--ink);padding-left:.42em}
+#playhole{position:fixed;left:0;top:0;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:50%;pointer-events:auto;z-index:3}
+#playhole svg{position:absolute;inset:0;margin:auto;width:42%;height:42%;filter:drop-shadow(0 2px 0 rgba(0,0,0,.5));animation:breathe 1.8s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.18)}}
+#titlefoot{text-align:center}
+#seedline{font:800 14px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.3em;text-transform:uppercase;padding-left:.3em}
+#bestline{margin-top:7px;font:700 14px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.06em;min-height:13px}
+#titlefoot{background:var(--paper);padding:11px 20px 10px;border-radius:30px;box-shadow:0 0 0 2.5px var(--ink),4px 5px 0 2.5px rgba(42,28,24,.55);transform:rotate(.8deg)}
+.snd{position:absolute;right:calc(14px);top:calc(12px + var(--sa-t));width:52px;height:52px;border-radius:50%}
+.snd svg{width:22px;height:22px;position:absolute;inset:0;margin:auto}
+.snd .x{display:none}body.muted .snd .x{display:block}body.muted .snd .w{display:none}
+
+/* pause + result */
+#pause{align-items:center;justify-content:center;background:rgba(42,28,24,.5)}
+#result{align-items:flex-end;justify-content:center;padding:0 14px calc(18px + var(--sa-b))}
+@media (orientation:landscape) and (min-width:700px){#result{align-items:center;justify-content:flex-end;padding:0 5vw 0 0}}
+@media (orientation:landscape) and (max-height:520px){#result .sheet{padding:14px 18px}}
+#pause.on,#result.on{display:flex;pointer-events:auto}
+.sheet{background:var(--paper);border-radius:8px;padding:22px 24px 22px;box-shadow:0 0 0 3px var(--ink),7px 9px 0 3px rgba(42,28,24,.55);text-align:center;max-width:min(92vw,420px);width:100%;transform:rotate(-.8deg);animation:sheet .35s cubic-bezier(.2,.8,.2,1) both}
+@keyframes sheet{from{opacity:0;transform:translateY(24px) rotate(-3deg)}}
+.sheet h2{margin:0 0 4px;font:800 11px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.38em;text-transform:uppercase;padding-left:.38em}
+.sheet .sub{font:700 14px/1.3 "Helvetica Neue",Arial,sans-serif}
+.btns{display:flex;gap:10px;justify-content:center;margin-top:18px;align-items:center}
+.btn{min-height:52px;padding:0 24px;border-radius:26px;background:var(--ink);color:var(--paper);font:800 14px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.16em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;box-shadow:3px 4px 0 var(--vio);transition:transform .12s}
+.btn:active{transform:translate(2px,3px);box-shadow:1px 1px 0 var(--vio)}
+.btn.alt{background:var(--paper);color:var(--ink);box-shadow:0 0 0 2.5px var(--ink),3px 4px 0 2.5px rgba(42,28,24,.55)}
+.btn.alt:active{box-shadow:0 0 0 2.5px var(--ink)}
+.btn.sm{min-height:48px;padding:0 14px;font-size:12px}
+.btn.big{padding:0 34px;font-size:16px}
+.btn.done:after{content:" \2713"}
+#rsize{display:flex;align-items:flex-end;justify-content:center;gap:2px;margin:12px 0 4px}
+#rsize .big{display:flex;gap:1px;align-items:flex-end}
+#rsize .u{font:800 22px/1 "Helvetica Neue",Arial,sans-serif;margin:0 0 8px 8px}
+#rlike{font:700 14px/1.3 "Helvetica Neue",Arial,sans-serif;min-height:18px}
+#rstats{display:flex;justify-content:space-between;gap:8px;margin-top:16px;padding-top:14px;border-top:2.5px solid var(--ink)}
+#rstats div{flex:1;min-width:0}
+#rstats b{display:flex;align-items:center;justify-content:center;min-height:50px;font:800 20px/1.05 "Helvetica Neue",Arial,sans-serif;text-transform:capitalize;overflow-wrap:anywhere}
+#rstats span{display:block;margin-top:6px;font:700 12px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;opacity:.7}
+#rbestline{margin-top:10px;font:800 12px/1 "Helvetica Neue",Arial,sans-serif;letter-spacing:.24em;text-transform:uppercase;color:var(--ink)}
+#rbest.on #rbestline{color:#fff;background:var(--pink);display:inline-block;padding:9px 16px 8px 18px;border-radius:3px;font-size:15px;box-shadow:3px 3px 0 var(--ink);animation:thump .5s .9s cubic-bezier(.2,.9,.3,1.6) both}
+@keyframes thump{0%{opacity:0;transform:scale(2.4) rotate(-14deg)}100%{opacity:1;transform:scale(1) rotate(-3deg)}}
+#rbest{min-height:30px}
+@media (prefers-reduced-motion:reduce){#slab.on{animation:cardr 1.5s both}.cell.pop,#badge.pop,#timer.gain,#rbest.on #rbestline{animation:none}#hand b{animation:none;transform:translate(var(--dx),var(--dy))}#playhole svg,#hud.low #tm,#hud.low #timer{animation:none}.sheet{animation:none}#card.on{animation:cardr 2.6s both}@keyframes cardr{0%{opacity:0}10%,85%{opacity:1;transform:none}100%{opacity:0}}#hand.on{animation:none;opacity:.9}}
+@media (max-height:520px){#title{padding-top:3vh;padding-bottom:3vh}}
+</style>
+</head>
+<body data-mode="title">
+<canvas id="stage" aria-label="A black hole on a street, swallowing what fits"></canvas>
+<div id="grain"></div>
+
+<div id="hud" aria-live="off">
+  <div id="badge"><div class="stamp" style="position:absolute;inset:0"></div><canvas id="bcv" width="144" height="144"></canvas>
+    <svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="33" fill="none" stroke="rgba(42,28,24,.18)" stroke-width="5"/><circle id="bring" cx="36" cy="36" r="33" fill="none" stroke="#7a4dff" stroke-width="7" stroke-linecap="round" stroke-dasharray="207" stroke-dashoffset="207" transform="rotate(-90 36 36)"/></svg></div>
+  <div id="plate" aria-label="Diameter of the hole"><div id="odo"></div><span id="unit">m</span></div>
+  <button id="timer" aria-label="Pause"><div class="stamp" style="position:absolute;inset:0"></div>
+    <svg class="rg" viewBox="0 0 72 72"><circle cx="36" cy="36" r="33" fill="none" stroke="rgba(42,28,24,.18)" stroke-width="5"/><circle id="tmring" cx="36" cy="36" r="33" fill="none" stroke="#2a1c18" stroke-width="5" stroke-linecap="round" stroke-dasharray="207" stroke-dashoffset="0" transform="rotate(-90 36 36)"/></svg>
+    <div id="tm"></div></button>
+</div>
+<div id="pops"></div>
+<div id="card"><div><span id="cardname"></span><small id="cardsub"></small></div></div>
+<div id="slab"><div id="slabtext"></div></div>
+<div id="stick"><i></i><b id="knob"></b></div>
+<div id="hand"><i></i><b></b></div>
+
+<section id="title" class="scene" aria-hidden="false">
+  <button class="snd stamp" aria-label="Sound on or off"><svg viewBox="0 0 24 24" fill="none" stroke="#2a1c18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><g class="w"><path d="M16.5 9a4.5 4.5 0 0 1 0 6M18.8 6.5a8 8 0 0 1 0 11"/></g><path class="x" d="M17 9l5 6M22 9l-5 6"/></svg></button>
+  <div id="brand"><div id="wordmark" aria-label="VOID"></div><div id="tag">swallow everything</div></div>
+  <div id="titlefoot"><div id="seedline"></div><div id="bestline"></div></div>
+  <button id="playhole" aria-label="Play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#f1e6cf"/></svg></button>
+</section>
+
+<section id="pause" class="scene" aria-hidden="true">
+  <div class="sheet"><h2>Paused</h2><div class="sub">The street holds still.</div>
+    <div class="btns"><button class="btn" id="resume">Resume</button><button class="btn alt sm" id="quit">Quit</button><button class="snd btn alt sm" style="position:relative;right:auto;top:auto;width:44px;padding:0" aria-label="Sound on or off"><svg viewBox="0 0 24 24" fill="none" stroke="#2a1c18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><g class="w"><path d="M16.5 9a4.5 4.5 0 0 1 0 6M18.8 6.5a8 8 0 0 1 0 11"/></g><path class="x" d="M17 9l5 6M22 9l-5 6"/></svg></button></div></div>
+</section>
+
+<section id="result" class="scene" aria-hidden="true">
+  <div class="sheet"><h2 id="rchapter"></h2>
+    <div id="rsize"></div><div id="rlike"></div>
+    <div id="rbest"><div id="rbestline"></div></div>
+    <div id="rstats"></div>
+    <div class="btns"><button class="btn big" id="again">Again</button><button class="btn alt sm" id="newstreet">New street</button><button class="btn alt sm" id="copy">Share</button></div></div>
+</section>
+
+<script id="core">
+// Chapter one: THE BLOCK. Units are metres, parts are relative to the object's centre, before yaw.
+// B box(x,y,w,d,z0,z1,col)  C cylinder(x,y,rad,z0,z1,col)  K cone(x,y,rad,z0,z1,col)  S sphere(x,y,rad,zc,col)
+// D flat disc(x,y,rad,z,col)  G gable(x,y,len,wid,z0,z1,col)  '$' as colour means "the object's own pick from pal".
+const KINDS1 = [
+  // ---- layer 0: things a manhole could swallow
+  {id: 'can', name: 'soda can', r: .17, pal: ['tom', 'tea', 'och', 'sky'], parts: [
+    ['C', 0, 0, .12, 0, .3, '$'], ['C', 0, 0, .125, .14, .18, 'cre']]},
+  {id: 'ball', name: 'football', r: .22, pal: ['cre', 'och', 'sky'], parts: [
+    ['S', 0, 0, .22, .22, '$']]},
+  {id: 'cone', name: 'traffic cone', r: .23, pal: ['tom', 'och'], parts: [
+    ['B', 0, 0, .36, .36, 0, .035, 'sla'], ['K', 0, 0, .17, .035, .68, '$'], ['C', 0, 0, .125, .26, .34, 'cre']]},
+  {id: 'bottle', name: 'bottle', r: .15, pal: ['tea', 'mos', 'och'], parts: [
+    ['C', 0, 0, .1, 0, .24, '$'], ['C', 0, 0, .045, .24, .36, '$'], ['D', 0, 0, .05, .37, 'cre']]},
+  // ---- layer 1
+  {id: 'bin', name: 'bin', r: .42, pal: ['sla', 'mos', 'tea'], parts: [
+    ['C', 0, 0, .36, 0, .92, '$'], ['C', 0, 0, .4, .86, .98, 'cre'], ['D', .0, .0, .26, .99, '$']]},
+  {id: 'hydrant', name: 'hydrant', r: .3, pal: ['tom', 'och'], parts: [
+    ['C', 0, 0, .17, 0, .62, '$'], ['H', 0, 0, .17, .12, .05, 'cre'], ['H', 0, 0, .17, .5, .05, 'cre'], ['S', 0, 0, .19, .66, '$'], ['C', 0, 0, .05, .8, .9, 'cre']]},
+  {id: 'crate', name: 'crate', r: .5, pal: ['san', 'och'], parts: [
+    ['B', 0, 0, .7, .7, 0, .62, '$'], ['B', 0, 0, .74, .08, .5, .64, 'sla'], ['B', 0, 0, .08, .74, .5, .64, 'sla']]},
+  {id: 'mailbox', name: 'post box', r: .45, pal: ['tom', 'tea'], parts: [['B', 0, 0, .5, .5, 0, .9, '$'], ['C', 0, 0, .25, .9, 1.0, '$'], ['B', 0, .26, .3, .02, .55, .62, 'win']]},
+  {id: 'planter', name: 'planter', r: .4, pal: ['mos', 'tea'], parts: [['C', 0, 0, .3, 0, .4, 'tom'], ['S', 0, 0, .3, .55, '$'], ['S', .12, -.08, .18, .75, 'mos']]},
+  {id: 'meter', name: 'parking meter', r: .3, pal: ['sla', 'tea'], parts: [
+    ['C', 0, 0, .05, 0, 1.0, 'sla'], ['B', 0, 0, .3, .2, 1.0, 1.4, '$']]},
+  // ---- layer 2
+  {id: 'barrel', name: 'oil drum', r: .58, pal: ['tom', 'tea', 'och'], parts: [['C', 0, 0, .46, 0, .95, '$'], ['H', 0, 0, .46, .28, .06, 'cre'], ['H', 0, 0, .46, .6, .06, 'cre']]},
+  {id: 'trolley', name: 'trolley', r: .85, pal: ['sla', 'tea'], parts: [['B', 0, 0, 1.0, .65, .25, .7, 'sky'], ['B', -.1, 0, .05, .65, .7, 1.0, '$'], ['C', -.4, -.3, .1, 0, .2, 'ink'], ['C', .4, -.3, .1, 0, .2, 'ink'], ['C', -.4, .3, .1, 0, .2, 'ink'], ['C', .4, .3, .1, 0, .2, 'ink']]},
+    {id: 'bench', name: 'bench', r: 1.0, pal: ['och', 'tea', 'tom'], parts: [
+    ['B', -.8, 0, .1, .55, 0, .42, 'win'], ['B', .8, 0, .1, .55, 0, .42, 'win'], ['B', 0, .05, 1.75, .5, .42, .52, '$'],
+    ['B', 0, -.22, 1.75, .09, .52, 1.0, '$']]},
+  {id: 'bush', name: 'hedge', r: .95, pal: ['mos', 'tea'], parts: [
+    ['S', -.3, .1, .6, .55, '$'], ['S', .35, .12, .55, .5, '$'], ['S', 0, -.2, .62, .65, 'mos']]},
+  {id: 'vending', name: 'vending machine', r: .7, pal: ['tea', 'tom', 'sky'], parts: [
+    ['B', 0, 0, .95, .8, 0, 1.9, '$'], ['B', 0, .41, .65, .02, .9, 1.7, 'cre'], ['B', 0, .41, .65, .02, .35, .6, 'win']]},
+  {id: 'table', name: 'picnic table', r: 1.15, pal: ['san', 'och'], parts: [
+    ['B', 0, -.7, 2.0, .25, 0, .45, '$'], ['B', 0, .7, 2.0, .25, 0, .45, '$'], ['B', 0, 0, 2.1, 1.1, .6, .72, '$']]},
+  // ---- layer 3
+  {id: 'car', name: 'car', r: 2.35, pal: ['tom', 'tea', 'och', 'cre', 'sky'], parts: [
+    ['C', -1.4, .9, .38, 0, .3, 'ink'], ['C', 1.4, .9, .38, 0, .3, 'ink'], ['C', -1.4, -.9, .38, 0, .3, 'ink'], ['C', 1.4, -.9, .38, 0, .3, 'ink'],
+    ['B', 0, 0, 4.3, 1.8, .3, 1.0, '$'], ['B', -.3, 0, 2.2, 1.6, 1.0, 1.5, '$'],
+    ['B', -.3, .81, 1.9, .02, 1.05, 1.42, 'win'], ['B', -.3, -.81, 1.9, .02, 1.05, 1.42, 'win'], ['B', .81, 0, .02, 1.3, 1.05, 1.42, 'win'], ['B', -1.41, 0, .02, 1.3, 1.05, 1.42, 'win']]},
+  {id: 'tree', name: 'tree', r: 1.9, pal: ['mos', 'tea'], parts: [
+    ['C', 0, 0, .3, 0, 2.2, 'san'], ['S', 0, 0, 1.7, 3.2, '$'], ['S', -.5, .3, 1.0, 3.8, 'mos']]},
+  {id: 'kiosk', name: 'kiosk', r: 1.7, pal: ['och', 'tom', 'tea'], parts: [
+    ['B', 0, 0, 2.6, 2.2, 0, 2.2, 'cre'], ['B', 0, 1.2, 3.0, .7, 1.7, 2.1, '$'], ['B', 0, 0, 2.8, 2.4, 2.2, 2.45, '$']]},
+  {id: 'shelter', name: 'bus shelter', r: 2.0, pal: ['sla', 'tea'], parts: [
+    ['B', 0, 0, 4.2, 2.6, 0, .05, 'cre'], ['B', -1.4, -.6, .1, .1, 0, 2.3, 'sla'], ['B', 1.4, -.6, .1, .1, 0, 2.3, 'sla'], ['B', 0, -.7, 3.0, .1, .6, 2.1, 'sky'],
+    ['B', 0, -.2, 2.2, .45, .05, .5, 'och'], ['B', 0, 0, 3.4, 1.8, 2.3, 2.45, '$'], ['C', 1.9, .8, .06, 0, 3.0, 'sla'], ['B', 1.9, .8, .6, .06, 2.4, 3.1, 'tom']]},
+  {id: 'skip', name: 'skip', r: 1.5, pal: ['tea', 'och', 'tom'], parts: [['B', 0, 0, 2.6, 1.5, 0, 1.1, '$'], ['B', 0, 0, 2.7, 1.6, 1.1, 1.2, 'sla'], ['B', .6, 0, 1.2, 1.2, 1.2, 1.5, 'san']]},
+  {id: 'hedge', name: 'garden hedge', r: 1.7, pal: ['mos', 'tea'], parts: [['B', 0, 0, 3.0, .9, 0, .5, 'san'], ['S', -1.0, 0, .62, .8, '$'], ['S', 0, 0, .66, .85, 'mos'], ['S', 1.0, 0, .62, .8, '$']]},
+  // ---- layer 4
+  {id: 'van', name: 'van', r: 3.1, pal: ['cre', 'tea', 'och'], parts: [
+    ['B', 0, 0, 5.6, 2.2, .35, 2.4, '$'], ['B', 2.5, 0, 1.6, 2.1, .35, 1.7, '$'], ['B', 2.9, 0, .1, 1.8, 1.2, 1.9, 'win'],
+    ['C', -1.8, 1.1, .45, 0, .45, 'ink'], ['C', 1.8, 1.1, .45, 0, .45, 'ink'], ['C', -1.8, -1.1, .45, 0, .45, 'ink'], ['C', 1.8, -1.1, .45, 0, .45, 'ink']]},
+  {id: 'oak', name: 'old oak', r: 3.4, pal: ['mos', 'tea'], parts: [
+    ['C', 0, 0, .55, 0, 4, 'san'], ['S', 0, 0, 3.1, 5.4, '$'], ['S', 1.2, -.7, 1.8, 7.1, 'mos'], ['S', -1.3, .8, 1.7, 6.6, '$']]},
+  {id: 'foodtruck', name: 'food truck', r: 3.6, pal: ['tom', 'och', 'tea'], parts: [
+    ['B', 0, 0, 6.2, 2.4, .4, 2.9, '$'], ['B', 0, 1.25, 3.2, .1, 1.5, 2.3, 'cre'], ['B', 0, 1.7, 3.6, .8, 2.3, 2.5, 'cre'],
+    ['B', 2.9, 0, 1.4, 2.2, .4, 1.9, '$'], ['C', -2.0, 1.2, .5, 0, .5, 'ink'], ['C', 2.0, 1.2, .5, 0, .5, 'ink'], ['C', -2.0, -1.2, .5, 0, .5, 'ink'], ['C', 2.0, -1.2, .5, 0, .5, 'ink']]},
+  {id: 'fountain', name: 'fountain', r: 3.2, pal: ['sky', 'tea'], parts: [
+    ['C', 0, 0, 3.0, 0, .6, 'cre'], ['D', 0, 0, 2.6, .55, '$'], ['C', 0, 0, .5, .55, 1.8, 'cre'], ['S', 0, 0, .8, 2.0, '$']]},
+  {id: 'stall', name: 'market stall', r: 2.6, pal: ['tom', 'och', 'tea'], parts: [['B', 0, 0, 4.2, 2.4, 0, .9, 'san'], ['B', -1.9, -1, .12, .12, .9, 2.4, 'sla'], ['B', 1.9, -1, .12, .12, .9, 2.4, 'sla'], ['G', 0, .1, 4.6, 3.0, 2.4, 3.2, '$'], ['S', -.9, .2, .35, 1.2, 'tom'], ['S', 0, .2, .35, 1.2, 'och'], ['S', .9, .2, .35, 1.2, 'mos']]},
+  // ---- layer 5
+  {id: 'bus', name: 'bus', r: 6.4, pal: ['tom', 'och', 'tea'], parts: [
+    ['B', 0, 0, 11.5, 2.6, .5, 3.1, '$'], ['B', 0, 1.31, 10.5, .08, 1.7, 2.7, 'win'], ['B', 0, 0, 11.6, 2.7, 2.7, 3.2, 'cre'],
+    ['C', -3.8, 1.3, .55, 0, .55, 'ink'], ['C', 3.8, 1.3, .55, 0, .55, 'ink'], ['C', -3.8, -1.3, .55, 0, .55, 'ink'], ['C', 3.8, -1.3, .55, 0, .55, 'ink']]},
+  {id: 'cottage', name: 'cottage', r: 6.6, pal: ['san', 'cre', 'och'], parts: [
+    ['B', 0, 0, 11.5, 10.6, 0, .06, 'mos'], ['B', 0, 4.6, 1.3, 2.6, .06, .1, 'san'],
+    ['B', 0, 0, 8.4, 7.0, 0, 3.6, '$'], ['B', -1.9, 3.52, 1.5, .08, .6, 2.5, 'win'], ['B', 2.3, 3.52, 1.7, .08, .6, 2.5, 'win'], ['B', .2, 3.53, 1.1, .08, 0, 2.2, 'plu'],
+    ['G', 0, 0, 9.4, 8.0, 3.6, 6.4, 'tom'], ['B', 2.6, -1.2, 1.0, 1.0, 4.4, 7.4, 'plu']]},
+  {id: 'tram', name: 'tram', r: 7.0, pal: ['och', 'tea'], parts: [
+    ['B', 0, 0, 13.0, 2.5, .6, 3.4, '$'], ['B', 0, 1.27, 12.0, .08, 1.7, 3.0, 'win'], ['B', 0, 0, 3.0, .12, 3.4, 4.6, 'sla'], ['C', -4.2, 1.2, .5, 0, .6, 'ink'], ['C', 4.2, 1.2, .5, 0, .6, 'ink'], ['C', -4.2, -1.2, .5, 0, .6, 'ink'], ['C', 4.2, -1.2, .5, 0, .6, 'ink']]},
+  {id: 'shed', name: 'garden shed', r: 4.6, pal: ['san', 'tea', 'tom'], parts: [['B', 0, 0, 7.4, 6.2, 0, .06, 'mos'], ['B', 0, 0, 6.0, 4.4, 0, 2.6, '$'], ['G', 0, 0, 6.6, 5.0, 2.6, 4.0, 'sla'], ['B', -1.3, 2.22, 1.3, .06, 0, 2.1, 'plu'], ['B', 1.5, 2.22, 1.2, .06, 1.0, 1.9, 'win'], ['B', 2.6, 1.6, 1.0, 1.0, 0, .5, 'sla']]},
+  // ---- layer 6
+  {id: 'church', name: 'church', r: 11, pal: ['cre', 'san'], parts: [
+    ['B', 0, 0, 18, 12, 0, .06, 'mos'], ['B', -2, 6, 1.6, 4, .06, .1, 'san'],
+    ['B', 0, 0, 14, 8, 0, 6, '$'], ['G', 0, 0, 15, 9, 6, 10, 'sla'], ['B', 7.5, 0, 4.4, 4.4, 0, 13, '$'], ['K', 7.5, 0, 3.4, 13, 21, 'tom'],
+    ['B', 7.5, 2.22, 1.4, .08, 9, 12, 'win'], ['B', -3, 4.02, 1.1, .08, 1.5, 4.8, 'win'], ['B', 0, 4.02, 1.1, .08, 1.5, 4.8, 'win'], ['B', 3, 4.02, 1.1, .08, 1.5, 4.8, 'win'], ['B', -6, 4.02, 1.6, .08, 0, 3.0, 'plu'], ['B', 7.5, 0, .3, .3, 21, 23.5, 'gol']]},
+  {id: 'petrol', name: 'petrol station', r: 11.5, pal: ['tom', 'tea', 'och'], parts: [
+    ['B', 0, 0, 20, 16, 0, .06, 'sla'], ['B', -6, -3, 5, 4, 0, 3.2, 'cre'], ['B', -6, -.9, 4.2, .08, .5, 2.4, 'win'], ['C', -2, 0, .35, 0, 4.4, 'sla'], ['C', 5, 0, .35, 0, 4.4, 'sla'], ['B', 0, 0, 1.0, .8, 0, 1.6, '$'], ['B', 3.4, 0, 1.0, .8, 0, 1.6, '$'],
+    ['B', 1, 0, 14, 10, 4.4, 5.0, '$'], ['C', 9, 6, .18, 0, 6.5, 'sla'], ['B', 9, 6, 2.2, .2, 5.6, 6.8, 'och']]},
+  {id: 'garages', name: 'garages', r: 8.4, pal: ['sla', 'san', 'cre'], parts: [['B', 0, 4.4, 15.4, 4.4, 0, .06, 'sla'], ['B', 0, 0, 14, 6, 0, 3.4, '$'], ['B', 0, 3.02, 3.2, .06, 0, 2.8, 'tea'], ['B', -4.4, 3.02, 3.2, .06, 0, 2.8, 'tom'], ['B', 4.4, 3.02, 3.2, .06, 0, 2.8, 'och'], ['B', 0, 0, 14.6, 6.6, 3.4, 3.7, 'sla']]},
+  {id: 'apartment', name: 'apartment', r: 12.4, pal: ['san', 'cre', 'tom'], parts: [
+    ['B', 0, 0, 20, 17, 0, .06, 'sla'], ['B', 0, 0, 16, 13, 0, 13, '$']].concat([0, 1, 2, 3].map(i => ['B', 0, 6.52, 14, .08, 1.5 + i * 2.8, 2.9 + i * 2.8, 'win'])).concat([['B', -5, 6.53, 1.6, .08, 0, 1.6, 'plu'], ['B', 0, 0, 16.6, 13.6, 13, 13.7, 'sla'], ['B', 3, 1, 3.4, 3.4, 13.7, 15.8, 'sla'], ['C', -5, -3, .15, 13.7, 17, 'sla']])},
+];
+KINDS1.push(
+  {id: 'bike', name: 'bicycle', r: .85, pal: ['tea', 'tom', 'och'], parts: [['O', -.55, 0, .3, .02, .06, 'ink'], ['O', .55, 0, .3, .02, .06, 'ink'], ['B', 0, 0, 1.0, .05, .3, .38, '$'], ['B', .22, 0, .05, .42, .72, .78, 'ink'], ['B', -.15, 0, .3, .1, .72, .8, 'sla']]},
+  {id: 'tyres', name: 'tyre stack', r: .7, pal: ['ink'], parts: [['C', 0, 0, .5, 0, .2, 'ink'], ['D', 0, 0, .22, .21, 'cre'], ['C', 0, 0, .5, .2, .4, 'ink'], ['C', 0, 0, .5, .4, .6, 'ink'], ['D', 0, 0, .22, .61, 'san']]},
+  {id: 'sofa', name: 'old sofa', r: 1.15, pal: ['tom', 'tea', 'och'], parts: [['B', 0, 0, 2.0, .9, 0, .45, '$'], ['B', 0, -.38, 2.0, .16, .45, .95, '$'], ['B', -.92, 0, .18, .9, .45, .7, '$'], ['B', .92, 0, .18, .9, .45, .7, '$']]},
+  {id: 'moped', name: 'moped', r: 1.1, pal: ['tea', 'tom', 'och'], parts: [['C', -.65, 0, .22, 0, .3, 'ink'], ['C', .65, 0, .22, 0, .3, 'ink'], ['B', 0, 0, 1.5, .4, .3, .6, '$'], ['B', -.5, 0, .55, .45, .6, .78, 'sla'], ['B', .7, 0, .06, .6, .6, 1.0, 'sla']]},
+  {id: 'pool', name: 'paddling pool', r: 1.6, pal: ['sky'], parts: [['C', 0, 0, 1.5, 0, .35, 'tom'], ['D', 0, 0, 1.3, .3, '$'], ['S', .3, -.2, .3, .35, 'och']]},
+  {id: 'pallets', name: 'pallets', r: 1.35, pal: ['san'], parts: [['B', 0, 0, 1.9, 1.6, 0, .2, '$'], ['B', 0, 0, 1.9, 1.6, .24, .44, '$'], ['B', 0, 0, 1.9, 1.6, .48, .68, '$'], ['B', 0, .81, 1.7, .02, .02, .64, 'win']]},
+  {id: 'castle', name: 'bouncy castle', r: 2.7, pal: ['tom', 'och', 'tea'], parts: [['B', 0, 0, 4.4, 3.6, 0, .9, '$'], ['S', -1.8, -1.5, .6, 1.4, 'cre'], ['S', 1.8, -1.5, .6, 1.4, 'cre'], ['S', -1.8, 1.4, .6, 1.4, 'cre'], ['S', 1.8, 1.4, .6, 1.4, 'cre'], ['B', 0, 0, 2.2, 1.6, .9, 1.6, 'sky']]},
+  {id: 'tent', name: 'tent', r: 2.4, pal: ['tea', 'och', 'tom'], parts: [['G', 0, 0, 4.0, 3.4, 0, 2.2, '$'], ['B', -2.0, .01, .02, .9, 0, 1.3, 'win']]},
+  {id: 'trailer', name: 'trailer', r: 2.9, pal: ['sla', 'tea', 'och'], parts: [['C', -1.2, 1.1, .4, 0, .4, 'ink'], ['C', -1.2, -1.1, .4, 0, .4, 'ink'], ['B', 0, 0, 4.6, 2.2, .35, 1.7, '$'], ['B', 2.6, 0, 1.4, .15, .3, .45, 'sla'], ['B', 0, 1.11, 4.0, .02, 1.0, 1.5, 'win']]},
+  {id: 'caravan', name: 'caravan', r: 3.9, pal: ['cre', 'tea', 'och'], parts: [['C', -.8, 1.3, .45, 0, .45, 'ink'], ['C', -.8, -1.3, .45, 0, .45, 'ink'], ['B', 0, 0, 6.2, 2.5, .4, 2.9, '$'], ['B', 0, 1.26, 3.0, .02, 1.3, 2.4, 'win'], ['G', 0, 0, 6.3, 2.6, 2.9, 3.4, 'sla']]},
+  {id: 'container', name: 'shipping container', r: 3.6, pal: ['tom', 'tea', 'och', 'sky'], parts: [['B', 0, 0, 6.0, 2.4, 0, 2.6, '$'], ['B', 0, 1.21, 5.6, .02, .2, 2.4, 'sla'], ['B', 2.4, 1.22, .06, .02, .2, 2.4, 'ink'], ['B', -2.4, 1.22, .06, .02, .2, 2.4, 'ink'], ['B', 0, 1.22, .06, .02, .2, 2.4, 'ink']]},
+  {id: 'swim', name: 'swimming pool', r: 5.4, pal: ['sky'], parts: [['B', 0, 0, 10.6, 6.2, 0, .3, 'cre'], ['B', 0, 0, 9.2, 4.8, .3, .4, '$'], ['B', -3, 0, .08, 4.8, .4, .45, 'cre'], ['B', 0, 0, .08, 4.8, .4, .45, 'cre'], ['B', 3, 0, .08, 4.8, .4, .45, 'cre']]},
+  {id: 'court', name: 'tennis court', r: 12, pal: ['mos', 'tom'], parts: [['B', 0, 0, 23, 11, 0, .2, '$'], ['B', 0, 0, .15, 11, .2, 1.1, 'cre'], ['B', 0, 0, 22, 10, .22, .24, 'cre'], ['B', 0, 0, 20.5, 8.5, .26, .28, '$']]},
+  {id: 'circus', name: 'circus tent', r: 10, pal: ['tom', 'tea', 'och'], parts: [['C', 0, 0, 9, 0, 6, 'cre'], ['K', 0, 0, 9.3, 6, 14, '$'], ['C', 0, 0, .25, 14, 18, 'sla'], ['B', 0, 6.6, 3, .1, 0, 3, 'ink']]},
+  {id: 'playpark', name: 'playground', r: 9, pal: ['tea', 'tom', 'och'], parts: [['D', 0, 0, 8.5, .1, 'san'], ['B', -4, -2, 2.2, 5.5, 0, 2.6, '$'], ['B', 3, 2, 3.2, 3.2, 0, 1.6, 'och'], ['C', 4.5, -4, .3, 0, 3.6, 'sla'], ['S', 4.5, -4, 1.2, 3.8, 'mos']]},
+);
+// Chapter two: THE CITY. Generators keep the parts lists short to write; each call is deterministic.
+function _rng(seed) { let s = seed >>> 0 || 1; return () => { s = Math.imul(s ^ (s >>> 15), 2246822519) >>> 0; s ^= s >>> 13; return (s >>> 0) / 4294967296; }; }
+// a building: walls, a roof slab, and rows of windows on the south face
+function bld(w, d, h, col, roof, rows) {
+  const p = [['B', 0, 0, w, d, 0, h, col], ['B', 0, 0, w * 1.04, d * 1.04, h, h + Math.max(.4, h * .015), roof || 'sla']];
+  const fh = h / (rows || 6);
+  for (let i = 0; i < (rows || 6); i++) p.push(['B', 0, d / 2 + .01, w * .86, .02, i * fh + fh * .3, i * fh + fh * .72, 'win']);
+  return p;
+}
+// a scatter of boxes inside a disc: a district. cells on a jittered grid, heights between h0 and h1
+function district(R, n, h0, h1, seed, cols, offset) {
+  const rnd = _rng(seed), k = Math.ceil(Math.sqrt(n * 1.3)), cs = 2 * R / k, out = [];
+  for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
+    const x = -R + (i + .5) * cs, y = -R + (j + .5) * cs;
+    if (Math.hypot(x, y) > R * .84 || rnd() < .12) continue;
+    const w = cs * (.45 + .3 * rnd()), d = cs * (.45 + .3 * rnd()), hh = h0 + (h1 - h0) * Math.pow(rnd(), 1.6);
+    out.push(['B', x + (rnd() - .5) * cs * .12, y + (rnd() - .5) * cs * .12, w, d, 0, hh, cols[(rnd() * cols.length) | 0]]);
+  }
+  return out;
+}
+function grove(R, n, seed, z) {
+  const rnd = _rng(seed), out = [];
+  for (let i = 0; i < n; i++) { const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * R * .8; out.push(['S', Math.cos(a) * rr, Math.sin(a) * rr, R * (.09 + .07 * rnd()), (z || 0) + R * .1, rnd() < .5 ? 'mos' : 'tea']); }
+  return out.sort((a, b) => a[2] - b[2]);
+}
+function ship(x, y, L, W, along, hull) {            // a freighter: hull, a deck of boxes, a bridge and a funnel. along: 'x' or 'y'
+  const a = along === 'x', P = (u, v) => a ? [x + u, y + v] : [x + v, y + u], B = (u, v, l, w, z0, z1, c) => { const q = P(u, v); return ['B', q[0], q[1], a ? l : w, a ? w : l, z0, z1, c]; };
+  const out = [B(0, 0, L, W, 0, L * .06, hull || 'plu'), B(0, 0, L * .96, W * .86, L * .06, L * .08, 'sla')];
+  for (let i = -2; i <= 1; i++) for (let j = -1; j <= 1; j++) out.push(B(i * L * .15 - L * .06, j * W * .26, L * .13, W * .24, L * .08, L * .13 + (i + j + 4) % 2 * L * .03, ['tom', 'tea', 'och', 'sky'][(i * 3 + j + 9) % 4]));
+  out.push(B(L * .36, 0, L * .16, W * .7, L * .08, L * .2, 'cre'), B(L * .36, 0, L * .08, W * .5, L * .2, L * .26, 'win'));
+  const f = P(L * .4, 0); out.push(['C', f[0], f[1], W * .14, L * .2, L * .3, 'tom']);
+  return out;
+}
+function plane(x, y, L, col) {                       // an airliner, nose to the east
+  return [['B', x, y, L, L * .13, L * .02, L * .15, col || 'whi'], ['B', x + L * .08, y, L * .2, L * .9, L * .05, L * .075, col || 'whi'], ['B', x - L * .42, y, L * .1, L * .32, L * .1, L * .12, col || 'whi'], ['B', x - L * .42, y, L * .1, L * .02, L * .1, L * .26, 'tom']];
+}
+const KINDS2 = [
+  // ---- layer 7
+  {id: 'warehouse', name: 'warehouse', r: 19, pal: ['sla', 'san', 'tea'], parts: [['B', 0, 0, 30, 14, 0, 7, '$'], ['G', 0, 0, 31, 15, 7, 11, 'sla'], ['B', -6, 7.01, 5, .02, 0, 5, 'win'], ['B', 6, 7.01, 5, .02, 0, 5, 'win']]},
+  {id: 'school', name: 'school', r: 20, pal: ['tom', 'san', 'cre'], parts: [['B', 0, 0, 32, 10, 0, 8, '$'], ['B', -12, 8, 8, 8, 0, 8, '$'], ['G', 0, 0, 33, 11, 8, 11, 'sla'], ['B', -11, 6.5, 4, .02, 0, 5, 'win'], ['B', 0, 5.01, 22, .02, 3, 6.5, 'win'], ['C', 12, -8, 1.3, 0, 14, 'sla'], ['K', 12, -8, 1.7, 14, 17, 'tom']]},
+  {id: 'office1', name: 'office', r: 17, pal: ['sky', 'tea', 'cre'], parts: bld(22, 18, 26, 'sky', 'sla', 8).concat([['B', 0, 0, 8, 8, 27, 31, 'sla']])},
+  {id: 'greenhouse', name: 'glasshouse', r: 21, pal: ['tea'], parts: [['B', 0, 0, 34, 16, 0, 2.4, 'cre'], ['G', 0, 0, 33, 15, 2.4, 9, 'ice'], ['G', 0, 0, 33, 15, 2.4, 9, 'sky']]},
+  // ---- layer 8
+  {id: 'tower1', name: 'office tower', r: 28, pal: ['sky', 'cre', 'tea'], parts: bld(26, 26, 62, '$', 'sla', 14).concat([['B', 0, 0, 12, 12, 62, 72, 'sla'], ['C', 0, 0, .8, 72, 84, 'sla']])},
+  {id: 'mall', name: 'shopping centre', r: 38, pal: ['och', 'tom', 'tea'], parts: [['B', 0, 0, 62, 36, 0, 12, 'cre'], ['B', 0, 18.01, 56, .03, 2, 8, 'win'], ['B', -22, -10, 14, 10, 12, 17, '$'], ['B', 22, -10, 14, 10, 12, 17, '$'], ['C', 0, 0, 10, 12, 20, 'sky']]},
+  {id: 'tanks', name: 'gas holders', r: 31, pal: ['cre', 'san'], parts: [['C', -14, 0, 14, 0, 30, 'cre'], ['D', -14, 0, 11, 30, 'san'], ['C', 15, 4, 12, 0, 24, 'tom'], ['D', 15, 4, 9, 24, 'cre'], ['B', 0, -20, 40, 3, 0, 3, 'sla']]},
+  {id: 'hotel', name: 'hotel', r: 30, pal: ['san', 'tom', 'cre'], parts: bld(34, 20, 44, '$', 'sla', 12).concat([['B', -22, 0, 14, 14, 0, 12, '$'], ['B', 0, 0, 12, 22, 44, 49, 'tea']])},
+  // ---- layer 9
+  {id: 'stadium', name: 'stadium', r: 70, pal: ['cre', 'san'], parts: [['C', 0, 0, 66, 0, 18, '$'], ['D', 0, 0, 56, 18.2, 'mos'], ['D', 0, 0, 22, 18.4, 'san'], ['O', 0, 0, 56, 18.5, 3, 'cre'], ['C', 0, 0, 66, 18, 22, 'sla'], ['D', 0, 0, 55, 22.2, 'mos'], ['D', 0, 0, 22, 22.4, 'san']]},
+  {id: 'tower2', name: 'skyscraper', r: 48, pal: ['sky', 'cre', 'tea', 'plu'], parts: bld(44, 44, 130, '$', 'sla', 28).concat([['B', 0, 0, 26, 26, 130, 160, '$'], ['B', 0, 0, 14, 14, 160, 190, 'sla'], ['C', 0, 0, 1, 190, 215, 'sla']])},
+  {id: 'factory', name: 'factory', r: 62, pal: ['sla', 'san', 'tom'], parts: [['B', 0, 0, 90, 52, 0, 20, '$'], ['G', -20, 0, 50, 54, 20, 30, 'sla'], ['G', 25, 0, 40, 54, 20, 30, 'sla'], ['C', 40, -26, 5, 0, 70, 'tom'], ['C', 54, -26, 5, 0, 60, 'tom'], ['D', 40, -26, 4, 70, 'ink'], ['D', 54, -26, 4, 60, 'ink']]},
+  {id: 'cathedral', name: 'cathedral', r: 58, pal: ['cre', 'san'], parts: [['B', 0, 0, 90, 30, 0, 30, '$'], ['G', 0, 0, 92, 32, 30, 48, 'sla'], ['B', 0, 0, 30, 90, 0, 30, '$'], ['G', 0, 0, 32, 92, 30, 48, 'sla'], ['B', 0, 44, 20, 20, 0, 64, '$'], ['K', 0, 44, 14, 64, 100, 'tea'], ['B', 0, -44, 20, 20, 0, 64, '$'], ['K', 0, -44, 14, 64, 100, 'tea']]},
+  // ---- layer 10
+  {id: 'twin', name: 'twin towers', r: 100, pal: ['sky', 'cre'], parts: bld(58, 58, 240, '$', 'sla', 40).map(p => p.slice()).map(p => { p[1] -= 52; return p; }).concat(bld(58, 58, 240, '$', 'sla', 40).map(p => { p = p.slice(); p[1] += 52; return p; })).concat([['B', 0, 0, 46, 30, 150, 160, 'sla']])},
+  {id: 'port', name: 'container port', r: 128, pal: ['tom', 'tea', 'och'], parts: [['B', 0, 30, 220, 140, 0, 1, 'sla']].concat((() => { const r = _rng(5), o = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 9; i++) { o.push(['B', -100 + i * 25, -10 + j * 26, 22, 22, 0, 8 + (r() < .5 ? 8 : 0) + (r() < .3 ? 8 : 0), ['tom', 'tea', 'och', 'sky', 'cre'][(r() * 5) | 0]]); } return o; })()).concat([['B', -90, -60, 5, 100, 0, 38, 'sla'], ['B', 0, -60, 220, 4, 36, 40, 'sla']])},
+  {id: 'campus', name: 'campus', r: 110, pal: ['san', 'cre'], parts: [['D', 0, 0, 100, .1, 'mos']].concat(district(100, 14, 20, 50, 21, ['san', 'cre', 'tom', 'sky']))},
+  // ---- layer 11
+  {id: 'downtown', name: 'downtown', r: 210, pal: ['sky'], parts: district(190, 40, 40, 360, 33, ['sky', 'cre', 'tea', 'san', 'sla'])},
+  {id: 'park', name: 'city park', r: 190, pal: ['mos'], parts: [['D', 0, 0, 180, .2, 'mos'], ['D', -40, 20, 70, .5, 'sea'], ['D', -40, 20, 62, .6, 'sky']].concat(grove(170, 36, 9, 0))},
+  {id: 'megatower', name: 'megatower', r: 150, pal: ['cre', 'tea'], parts: bld(120, 120, 380, '$', 'sla', 48).concat([['B', 0, 0, 80, 80, 380, 520, '$'], ['B', 0, 0, 40, 40, 520, 640, 'sla'], ['C', 0, 0, 3, 640, 740, 'sla']])},
+  // ---- layer 12
+  {id: 'airport', name: 'airport', r: 420, pal: ['cre'], parts: [['D', 0, 0, 400, .2, 'mos'], ['B', 0, -120, 760, 60, 0, .6, 'sla'], ['B', 0, 30, 700, 50, 0, .6, 'sla'], ['B', 0, -120, 700, 5, .6, 1, 'cre'], ['B', 0, 30, 640, 4, .6, 1, 'cre'], ['B', -220, -45, 24, 140, 0, .6, 'sla'], ['B', 140, -45, 24, 140, 0, .6, 'sla'], ['B', 0, 150, 300, 90, 0, 24, 'cre'], ['B', 0, 196, 280, 3, 3, 16, 'win'], ['G', 0, 150, 310, 100, 24, 40, 'tea'], ['C', 120, 150, 9, 24, 90, 'cre'], ['B', 120, 150, 24, 24, 90, 104, 'win']].concat(plane(-160, -120, 60)).concat(plane(180, 30, 56, 'sky')).concat(plane(-70, 215, 50, 'och')).concat(plane(30, 215, 50, 'whi'))},
+  {id: 'district', name: 'district', r: 380, pal: ['san'], parts: [['D', 0, 0, 380, .1, 'sla']].concat(district(350, 100, 30, 220, 77, ['san', 'cre', 'sky', 'tom', 'tea']))},
+  {id: 'reservoir', name: 'reservoir', r: 330, pal: ['sky'], parts: [['D', 0, 0, 330, .1, 'san'], ['D', 0, 0, 300, .3, 'sea'], ['D', 20, 10, 250, .5, 'sky'], ['B', 0, -300, 100, 18, 0, 40, 'cre']]},
+  // ---- layer 13
+  {id: 'cityc', name: 'city centre', r: 760, pal: ['sky'], parts: district(700, 150, 60, 700, 91, ['sky', 'cre', 'tea', 'san', 'sla', 'plu'])},
+  {id: 'harbour', name: 'harbour', r: 820, pal: ['sea'], parts: [['D', 0, 0, 800, .1, 'sea'], ['D', 0, 0, 770, .3, 'sky'], ['B', -250, 290, 760, 440, 0, 5, 'san'], ['B', 340, -60, 190, 780, 0, 5, 'san']].concat((() => { const r = _rng(8), o = []; for (let j = 0; j < 7; j++) for (let i = 0; i < 13; i++) { if (i === 6) continue; o.push(['B', -590 + i * 48, 170 + j * 52, 42, 44, 5, 15 + (r() < .5 ? 14 : 0) + (r() < .25 ? 14 : 0), ['tom', 'tea', 'och', 'sky', 'cre'][(r() * 5) | 0]]); } return o; })()).concat([['B', -250, 100, 560, 10, 5, 24, 'tom'], ['B', -520, 108, 8, 56, 5, 150, 'tom'], ['B', -520, 96, 8, 90, 140, 150, 'tom'], ['B', -140, 108, 8, 56, 5, 150, 'tom'], ['B', -140, 96, 8, 90, 140, 150, 'tom'], ['B', 340, 220, 90, 60, 5, 70, 'cre'], ['C', -600, -420, 26, 0, 150, 'cre'], ['C', -600, -420, 28, 110, 124, 'tom'], ['K', -600, -420, 34, 150, 220, 'tom']]).concat(ship(190, -280, 520, 100, 'y', 'plu')).concat(ship(-330, -280, 340, 76, 'x', 'sla')).concat(ship(-170, -60, 250, 60, 'x', 'tom')).concat(ship(190, 330, 300, 80, 'y', 'sla'))},
+  {id: 'woodland', name: 'forest', r: 650, pal: ['mos'], parts: [['D', 0, 0, 640, .1, 'mos']].concat(grove(640, 90, 3, 0))},
+];
+// Chapter three: THE WORLD. Land and sea seen from a long way up; heights are exaggerated so that a mountain still stands.
+function strips(R, step, w, z, col) {               // streets across a disc: two sets of long thin slabs, clipped to the circle
+  const o = [];
+  for (let v = -R + step / 2; v < R; v += step) { const h = Math.sqrt(Math.max(0, R * R - v * v)) * .94; if (h < R * .25) continue; o.push(['B', 0, v, h * 2, w, z, z + w * .3, col], ['B', v, 0, w, h * 2, z, z + w * .3, col]); }
+  return o;
+}
+// a built-up place seen from far above: a ground plate, its streets, then buildings that rise toward the middle
+function placeOf(R, n, h0, h1, seed, cols, plate, gnd) {
+  const rnd = _rng(seed), k = Math.ceil(Math.sqrt(n * 1.3)), cs = 2 * R * .86 / k, out = [['F', 0, 0, R, 0, R * .012, seed % 9 + 1, plate || 'mos'], ['F', 0, 0, R * .9, R * .012, R * .02, seed % 7 + 2, gnd || 'cre']].concat(strips(R * .86, cs * 2, cs * .2, R * .02, 'sla'));
+  for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
+    const x = -R * .86 + (i + .5) * cs, y = -R * .86 + (j + .5) * cs, d = Math.hypot(x, y) / (R * .86);
+    if (d > .98 || rnd() < .1) continue;
+    const mid = 1 - d * .75, w = cs * (.42 + .22 * rnd()), dd = cs * (.42 + .22 * rnd()), hh = h0 + (h1 - h0) * Math.pow(rnd(), 1.5) * mid;
+    out.push(['B', x + (rnd() - .5) * cs * .1, y + (rnd() - .5) * cs * .1, w, dd, R * .02, R * .02 + hh, cols[(rnd() * cols.length) | 0]]);
+  }
+  return out;
+}
+function towns(R, n, seed) { return placeOf(R, n, R * .012, R * .07, seed, ['tom', 'cre', 'san', 'och', 'sky'], 'mos', 'san'); }
+function pines(R, n, seed, z) {                      // conifers from above: a scatter of green cones
+  const rnd = _rng(seed), out = [];
+  for (let i = 0; i < n; i++) { const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * R * .86; out.push(['K', Math.cos(a) * rr, Math.sin(a) * rr, R * (.05 + .03 * rnd()), z, z + R * (.14 + .06 * rnd()), rnd() < .5 ? 'tea' : 'mos']); }
+  return out.sort((a, b) => a[2] - b[2]);
+}
+function boat(x, y, L, z) { return [['B', x, y, L, L * .28, z, z + L * .1, 'whi'], ['K', x - L * .1, y, L * .16, z + L * .1, z + L * .75, 'whi']]; }
+function ridge(R, seed, cols) {                      // a chain of peaks
+  const rnd = _rng(seed), out = [];
+  for (let i = 0; i < 7; i++) {
+    const t = i / 6 - .5, x = t * R * 1.5, y = Math.sin(t * 5 + seed) * R * .25, rr = R * (.2 + .12 * rnd()), h = rr * (1.2 + .6 * rnd());
+    out.push(['M', x, y, rr, 0, h, .6, 0, cols[0]]);
+  }
+  return out.sort((a, b) => a[2] - b[2]);
+}
+const KINDS3 = [
+  // ---- layer 14
+  {id: 'hill', name: 'hill', r: 1250, pal: ['mos'], parts: [['F', 0, 0, 1250, 0, 60, 3, 'mos'], ['F', -250, 240, 560, 60, 330, 4, 'mos'], ['F', 100, 0, 760, 60, 640, 5, 'mos'], ['F', 100, 0, 420, 640, 700, 6, 'san']].concat(grove(900, 22, 5, 60).filter(p => Math.hypot(p[1] - 100, p[2]) > 560 || p[2] > 0)).concat([['B', 120, -40, 90, 90, 700, 760, 'cre'], ['K', 120, -40, 80, 760, 880, 'tom'], ['B', -520, -420, 150, 90, 20, 70, 'tom'], ['G', -520, -420, 160, 100, 70, 130, 'tom'], ['B', -380, -380, 110, 70, 20, 60, 'cre'], ['G', -380, -380, 120, 80, 60, 110, 'sla']])},
+  {id: 'lake', name: 'lake', r: 1150, pal: ['sky'], parts: [['F', 0, 0, 1150, 0, 10, 2, 'san'], ['F', 0, 0, 1010, 10, 18, 2, 'sea'], ['F', 40, 20, 860, 18, 24, 2, 'sky'], ['B', -1010, -60, 360, 40, 18, 40, 'san'], ['B', 420, -820, 90, 80, 10, 90, 'tom'], ['G', 420, -820, 100, 90, 90, 150, 'sla'], ['B', 560, -800, 70, 60, 10, 70, 'cre'], ['G', 560, -800, 80, 70, 70, 120, 'tom']].concat(boat(-120, 90, 190, 24)).concat(boat(260, 300, 150, 24)).concat(boat(-420, -230, 130, 24)).concat(grove(1000, 8, 41, 0).filter(p => Math.hypot(p[1], p[2]) > 800))},
+  {id: 'town', name: 'town', r: 1450, pal: ['san'], parts: placeOf(1450, 150, 18, 95, 12, ['tom', 'cre', 'san', 'och', 'sky'], 'mos', 'san').concat([['B', 0, 0, 90, 90, 40, 150, 'cre'], ['K', 0, 0, 70, 150, 330, 'tea']])},
+  // ---- layer 15
+  {id: 'mountain', name: 'mountain', r: 2700, pal: ['sla'], parts: [['F', 0, 0, 2700, 0, 160, 5, 'mos'], ['M', 800, 600, 1500, 160, 1500, .5, 0, 'sla'], ['M', -1000, 700, 1300, 160, 1250, .55, 0, 'san'], ['M', -100, -250, 2000, 160, 2300, .48, 0, 'sla'], ['M', 900, -900, 900, 160, 1000, .7, 0, 'sla']].concat(grove(3000, 26, 8, 160).filter(p => Math.hypot(p[1], p[2]) > 1950))},
+  {id: 'woods', name: 'forest', r: 2200, pal: ['mos'], parts: [['F', 0, 0, 2200, 0, 20, 8, 'mos'], ['F', 500, 300, 520, 20, 26, 3, 'sea'], ['F', 500, 300, 430, 26, 32, 3, 'sky'], ['F', -700, -500, 380, 20, 26, 5, 'och'], ['B', -700, -500, 120, 90, 26, 80, 'tom'], ['G', -700, -500, 130, 100, 80, 140, 'sla']].concat(grove(2100, 120, 17, 20).map(p => { p = p.slice(); p[3] *= 1.4; return p; }).filter(p => Math.hypot(p[1] - 500, p[2] - 300) > 560 && Math.hypot(p[1] + 700, p[2] + 500) > 480))},
+  {id: 'islet', name: 'island', r: 2900, pal: ['mos'], parts: [['F', 0, 0, 2900, 0, 24, 5, 'sea'], ['F', 0, 0, 2400, 24, 52, 5, 'san'], ['F', 0, 0, 2000, 52, 130, 5, 'mos']].concat(grove(1700, 24, 6, 130)).concat([['B', 700, 300, 260, 180, 130, 230, 'tom'], ['G', 700, 300, 280, 200, 230, 330, 'sla']]).concat(boat(-2200, 900, 520, 24)).concat(boat(1900, -1500, 420, 24))},
+  // ---- layer 16
+  {id: 'bigcity', name: 'city', r: 4400, pal: ['sky'], parts: placeOf(4400, 300, 90, 700, 31, ['sky', 'cre', 'tea', 'san', 'plu'], 'mos', 'cre').concat([['F', -1500, 1300, 700, 150, 190, 4, 'mos'], ['F', 1700, -900, 560, 150, 190, 6, 'mos'], ['F', 400, 2300, 520, 150, 190, 8, 'sea']])},
+  {id: 'range', name: 'mountain range', r: 5400, pal: ['sla'], parts: ridge(5400, 3, ['sla', 'ice'])},
+  {id: 'greatlake', name: 'great lake', r: 5000, pal: ['sky'], parts: [['F', 0, 0, 5000, 0, 20, 9, 'san'], ['F', 0, 0, 4700, 20, 36, 9, 'sea'], ['F', 0, 0, 3600, 36, 44, 9, 'sky'], ['F', 900, -700, 800, 44, 150, 4, 'san'], ['F', 900, -700, 600, 150, 230, 4, 'mos'], ['F', -1500, 900, 520, 44, 130, 7, 'san'], ['F', -1500, 900, 380, 130, 200, 7, 'mos']].concat(boat(-700, -1200, 520, 44)).concat(boat(1500, 1200, 420, 44)).concat(boat(-200, 1900, 460, 44))},
+  // ---- layer 17
+  {id: 'island2', name: 'big island', r: 8700, pal: ['mos'], parts: [['F', 0, 0, 8700, 0, 40, 4, 'sea'], ['F', 0, 0, 7500, 40, 90, 4, 'san'], ['F', 0, 0, 6600, 90, 260, 4, 'mos'], ['M', -1500, -700, 2600, 260, 2400, .6, 0, 'sla']].concat(towns(4800, 40, 3).map(p => { p = p.slice(); p[5] += 260; p[6] += 260; return p; }))},
+  {id: 'volcano', name: 'volcano', r: 9000, pal: ['tom'], parts: [['F', 0, 0, 9000, 0, 300, 4, 'mos'], ['M', 0, 0, 8200, 300, 6200, 0, .34, 'sla'], ['D', 0, 0, 2700, 6240, 'tom'], ['D', 0, 0, 2000, 6280, 'och'], ['D', 0, 0, 1100, 6320, 'gol'], ['K', 5200, 3800, 900, 300, 1600, 'sla']]},
+  {id: 'metro', name: 'metropolis', r: 9800, pal: ['sky'], parts: placeOf(9800, 420, 200, 1800, 41, ['sky', 'cre', 'tea', 'san', 'plu', 'tom'], 'sla', 'cre').concat([['F', -3000, 2500, 1500, 400, 470, 4, 'mos'], ['F', 3800, -2200, 1200, 400, 470, 6, 'mos'], ['F', 900, 5200, 1100, 400, 470, 8, 'sea']])},
+  // ---- layer 18
+  {id: 'storm', name: 'hurricane', r: 17500, pal: ['whi'], parts: [['W', 0, 0, 17500, 600, 'whi'], ['D', 0, 0, 2400, 700, 'sea']]},
+  {id: 'archi', name: 'archipelago', r: 18000, pal: ['mos'], parts: [['F', 0, 0, 16000, 0, 20, 2, 'sea']].concat([[-8000, -2000, 5200, 1], [3500, -6500, 4000, 3], [7000, 4500, 4800, 5], [-3000, 7500, 3600, 7], [-1500, 500, 3000, 9]].map(a => ['F', a[0], a[1], a[2], 20, 300, a[3], 'mos']))},
+  {id: 'ice', name: 'glacier', r: 16000, pal: ['ice'], parts: [['F', 0, 0, 16000, 0, 300, 11, 'sky'], ['F', 0, 0, 15000, 300, 520, 11, 'ice'], ['F', 3000, -1000, 10000, 520, 760, 12, 'whi'], ['B', 1000, -3000, 11000, 260, 760, 790, 'sky'], ['B', -2000, 2000, 9000, 220, 760, 790, 'sky'], ['B', 3000, 5000, 7000, 200, 760, 790, 'sky'], ['M', -5000, 3000, 4800, 760, 4600, .55, 0, 'sky'], ['M', 6000, -5000, 3400, 760, 3200, .55, 0, 'sky']]},
+  {id: 'taiga', name: 'taiga', r: 14000, pal: ['tea'], parts: [['F', 0, 0, 14000, 0, 200, 14, 'tea'], ['F', 2500, 2000, 3600, 200, 260, 2, 'sea'], ['F', 2500, 2000, 3000, 260, 300, 2, 'sky']].concat(pines(13000, 130, 6, 200).filter(p => Math.hypot(p[1] - 2500, p[2] - 2000) > 3800))},
+  // ---- layer 19
+  {id: 'country', name: 'country', r: 31000, pal: ['mos'], parts: [['F', 0, 0, 31000, 0, 400, 3, 'sea'], ['F', 0, 0, 27000, 400, 900, 3, 'san'], ['F', 0, 0, 24500, 900, 2000, 3, 'mos']].concat(ridge(14000, 4, ['sla', 'ice']).map(p => { p = p.slice(); p[2] -= 5000; p[4] += 2000; p[5] += 2000; return p; })).concat([['F', 8000, 8000, 2800, 2000, 6000, 3, 'sla'], ['F', -9000, 5000, 3200, 2000, 5000, 4, 'sla'], ['F', -3000, -10000, 2600, 2000, 5800, 5, 'sla']])},
+  {id: 'desert', name: 'desert', r: 28000, pal: ['san'], parts: [['F', 0, 0, 28000, 0, 300, 15, 'san'], ['F', -8000, -3000, 9000, 300, 900, 4, 'och'], ['F', 7000, 6000, 8000, 300, 800, 6, 'och'], ['F', 4000, -9000, 6000, 300, 700, 8, 'och'], ['F', -9000, 10000, 7000, 300, 800, 2, 'och'], ['F', -1000, 1000, 3800, 300, 340, 3, 'mos'], ['F', -1000, 1000, 2600, 340, 380, 5, 'sky'], ['M', 14000, -3000, 3800, 300, 2200, 0, 0, 'plu'], ['M', -15000, 4000, 3000, 300, 1800, 0, 0, 'plu']]},
+  {id: 'sea', name: 'gulf', r: 33000, pal: ['sea'], parts: [['F', 0, 0, 33000, 0, 300, 5, 'san'], ['F', 0, 0, 30000, 300, 800, 5, 'sea'], ['F', 1000, 1500, 25000, 800, 1400, 6, 'sky']]},
+  // ---- layer 20
+  {id: 'continent', name: 'continent', r: 58000, pal: ['mos'], parts: [['F', 0, 0, 58000, 0, 800, 8, 'sea'], ['F', 0, 0, 52000, 800, 2200, 8, 'san'], ['F', 0, 0, 47000, 2200, 4000, 8, 'mos'], ['F', 9000, -9000, 21000, 4000, 7000, 9, 'tea'], ['F', -14000, 12000, 15000, 4000, 12000, 10, 'sla'], ['F', -14000, 12000, 6000, 12000, 15000, 10, 'ice'], ['S', 20000, 16000, 9000, 14000, 'whi'], ['S', 27000, 12000, 6500, 12000, 'whi'], ['S', -20000, -18000, 8000, 15000, 'whi']]},
+  {id: 'ocean', name: 'ocean', r: 60000, pal: ['sea'], parts: [['F', 0, 0, 60000, 0, 1000, 12, 'sea'], ['F', 4000, 3000, 48000, 1000, 2000, 13, 'sky'], ['W', -12000, -10000, 24000, 4000, 'whi'], ['S', 28000, -20000, 9000, 14000, 'whi'], ['S', -30000, 22000, 9000, 14000, 'whi']]},
+];
+// Chapter four: THE COSMOS. Light on black: stars are glow, planets are lit spheres, and the larger things are made of smaller ones.
+function starfield(R, n, seed, cols) {
+  const rnd = _rng(seed), out = [];
+  for (let i = 0; i < n; i++) { const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * R * .86; out.push(['Y', Math.cos(a) * rr, Math.sin(a) * rr, R * (.08 + .12 * rnd()), cols[(rnd() * cols.length) | 0]]); }
+  return out;
+}
+function cluster(R, n, seed, big) {                  // small galaxies in a swarm
+  const rnd = _rng(seed), out = [['Y', 0, 0, R, 'sea']];
+  for (let i = 0; i < n; i++) { const a = rnd() * 6.283, rr = Math.sqrt(rnd()) * R * .7; out.push(['A', Math.cos(a) * rr, Math.sin(a) * rr * .8, R * (.16 + .12 * rnd()), (rnd() * 9) | 0, rnd() < .5 ? 'sky' : 'gol']); }
+  return out;
+}
+const KINDS4 = [
+  // ---- layer 21
+  {id: 'moon', name: 'moon', r: 90000, pal: ['cre'], parts: [['P', 0, 0, 90000, 90000, 0, 'sla'], ['D', -25000, -20000, 14000, 150000, 'cre'], ['D', 30000, 20000, 20000, 140000, 'cre'], ['D', 5000, 45000, 9000, 160000, 'cre']]},
+  {id: 'mars', name: 'red planet', r: 100000, pal: ['tom'], parts: [['P', 0, 0, 100000, 100000, 0, 'tom']]},
+  {id: 'asteroids', name: 'asteroid belt', r: 110000, pal: ['sla'], parts: (() => { const r = _rng(5), o = []; for (let i = 0; i < 26; i++) { const a = r() * 6.283, rr = Math.sqrt(r()) * 90000; o.push(['S', Math.cos(a) * rr, Math.sin(a) * rr, 5000 + r() * 12000, 8000, r() < .5 ? 'sla' : 'san']); } return o; })()},
+  // ---- layer 22
+  {id: 'earth', name: 'blue planet', r: 170000, pal: ['sea'], parts: [['P', 0, 0, 170000, 170000, 0, 'sea'], ['F', -30000, -20000, 70000, 170000, 171500, 3, 'mos'], ['F', 60000, 50000, 40000, 170000, 171500, 5, 'mos'], ['W', 40000, -60000, 70000, 172000, 'whi']]},
+  {id: 'icemoon', name: 'ice moon', r: 150000, pal: ['ice'], parts: [['P', 0, 0, 150000, 150000, 0, 'ice'], ['D', -40000, 20000, 30000, 270000, 'sky'], ['D', 50000, -30000, 20000, 280000, 'sky']]},
+  {id: 'twinmoon', name: 'twin moons', r: 190000, pal: ['san'], parts: [['P', -80000, 20000, 90000, 90000, 0, 'san'], ['P', 90000, -40000, 70000, 70000, 0, 'cre']]},
+  // ---- layer 23
+  {id: 'gas', name: 'gas giant', r: 310000, pal: ['och'], parts: [['P', 0, 0, 310000, 310000, 1, 'och']]},
+  {id: 'ringed', name: 'ringed planet', r: 390000, pal: ['san'], parts: [['O', 0, 0, 380000, 20000, 40000, 'san'], ['O', 0, 0, 320000, 20000, 20000, 'cre'], ['P', 0, 0, 220000, 220000, 1, 'san'], ['O', 0, 0, 350000, 460000, 30000, 'san']]},
+  {id: 'icegiant', name: 'ice giant', r: 280000, pal: ['sky'], parts: [['P', 0, 0, 280000, 280000, 1, 'tea']]},
+  // ---- layer 24
+  {id: 'star', name: 'star', r: 520000, pal: ['gol'], parts: [['Y', 0, 0, 900000, 'och'], ['T', 0, 0, 420000, 420000, 'gol'], ['Y', 0, 0, 480000, 'gol']]},
+  {id: 'redstar', name: 'red dwarf', r: 480000, pal: ['tom'], parts: [['Y', 0, 0, 820000, 'tom'], ['T', 0, 0, 340000, 340000, 'tom'], ['Y', 0, 0, 380000, 'och']]},
+  {id: 'pulsar', name: 'pulsar', r: 700000, pal: ['sky'], parts: [['Y', 0, 0, 800000, 'sky'], ['O', 0, 0, 400000, 0, 40000, 'ice'], ['Y', 0, 0, 260000, 'whi']]},
+  // ---- layer 25
+  {id: 'giant', name: 'blue giant', r: 1000000, pal: ['sky'], parts: [['Y', 0, 0, 1700000, 'sky'], ['T', 0, 0, 800000, 800000, 'ice'], ['Y', 0, 0, 900000, 'whi']]},
+  {id: 'binary', name: 'binary star', r: 1150000, pal: ['gol'], parts: [['Y', -450000, 0, 900000, 'och'], ['T', -450000, 0, 350000, 350000, 'gol'], ['Y', 520000, 80000, 700000, 'sky'], ['T', 520000, 80000, 260000, 260000, 'ice']]},
+  {id: 'nebula', name: 'nebula', r: 1300000, pal: ['och'], parts: [['Y', -300000, -200000, 1000000, 'och'], ['Y', 350000, 100000, 900000, 'tea'], ['Y', 0, 350000, 800000, 'sea']].concat(starfield(900000, 9, 3, ['whi', 'gol']))},
+  // ---- layer 26
+  {id: 'starcluster', name: 'star cluster', r: 1900000, pal: ['gol'], parts: [['Y', 0, 0, 1900000, 'sea']].concat(starfield(1800000, 60, 9, ['gol', 'whi', 'sky', 'och']))},
+  {id: 'bignebula', name: 'great nebula', r: 2300000, pal: ['och'], parts: [['Y', -700000, -300000, 1700000, 'och'], ['Y', 600000, 300000, 1500000, 'tea'], ['Y', 0, -700000, 1200000, 'sea'], ['Y', 300000, 700000, 1100000, 'sky']].concat(starfield(1700000, 30, 5, ['whi', 'gol']))},
+  // ---- layer 27
+  {id: 'galaxy', name: 'galaxy', r: 4200000, pal: ['sky'], parts: [['A', 0, 0, 4200000, 1, 'sky']]},
+  {id: 'galaxy2', name: 'barred galaxy', r: 3600000, pal: ['gol'], parts: [['A', 0, 0, 3600000, 2, 'gol']]},
+  {id: 'ellip', name: 'elliptical galaxy', r: 3200000, pal: ['och'], parts: [['Y', 0, 0, 3300000, 'och'], ['Y', 0, 0, 1500000, 'gol'], ['Y', 0, 0, 500000, 'whi']]},
+];
+// beyond that the universe repeats itself at larger and larger sizes: these are scaled to the layer they appear in.
+const KINDS_BEYOND = [
+  {id: 'galaxy_s', name: 'galaxy', pal: ['sky', 'gol'], gen: r => [['A', 0, 0, r, 3, '$']]},
+  {id: 'swarm', name: 'galaxy cluster', pal: ['sky'], gen: r => cluster(r, 9, 4)},
+  {id: 'filament', name: 'filament', pal: ['och'], gen: r => starfield(r, 26, 6, ['och', 'sky', 'sea']).map((p, i) => { p[1] = (i / 26 - .5) * r * 1.7; p[2] = Math.sin(i * .7) * r * .3; p[3] = r * .16; return p; })},
+  {id: 'wall', name: 'supercluster', pal: ['gol'], gen: r => cluster(r, 14, 8)},
+];
+// ---- THE CORE: what the game stands on. No DOM, no clock, no randomness it was not handed.
+// The world is one endless plane. Every size of thing lives in its own LAYER n: radii from LO(n) to LO(n)*F, laid on a grid of cells
+// of 15.5*LO(n), one candidate per cell. A thing exists unless it would overlap something of the next six larger layers, so the
+// street is the same street whichever order you meet it in, and a hole that has grown past a layer sees it as texture, not as food.
+const KIND_LIST = [].concat(KINDS1, KINDS2, KINDS3, KINDS4);
+const VOID = (() => {
+  const F = 1.85, R0 = .4, LO0 = .165, CELL = 11, WALL = .8;
+  // the economy: area grows by kappa * (area eaten), kappa falling with size so that each size takes a little longer than the last;
+  // crossing into a size pays a bonus that falls too, and a mouthful pays by how big it is next to the hole.
+  const TUNE = {kappa0: .38, kdecay: .97, bonus0: 5.6, bonusSlope: .15, bonusMin: 1.2, eatBonus: 1.2, T0: 55};
+  const kappa = L => TUNE.kappa0 * Math.pow(TUNE.kdecay, Math.max(0, L));
+  const levelBonus = L => Math.max(TUNE.bonusMin, TUNE.bonus0 - TUNE.bonusSlope * L);
+  const SX = 26666646.2, SY = 26666646.2;                         // where every night starts: the footpath at a junction of the finest streets
+  const FALL = .62;
+  const CHAPTERS = [{name: 'The Block', from: 0, lip: 0}, {name: 'The City', from: 7, lip: 1}, {name: 'The World', from: 14, lip: 2}, {name: 'The Cosmos', from: 21, lip: 3}];
+  const LN_F = Math.log(F);
+
+  // ---- hashing
+  function hash(a, b, c, d) {
+    let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 2147483629) ^ Math.imul(d | 0, 1274126177);
+    h = Math.imul(h ^ (h >>> 15), 2246822519); h = Math.imul(h ^ (h >>> 13), 3266489917); h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  const lo = n => LO0 * Math.pow(F, n);
+  const cell = n => lo(n) * (n <= 2 ? 7 : n <= 6 ? 9.5 : n <= 20 ? 8.5 : CELL);                  // the little ones are laid closer, so the first minutes are never empty
+  const layerOfR = r => Math.max(0, Math.floor(Math.log(r / LO0) / LN_F + 1e-9));
+  const levelOfR = R => Math.log(R / R0) / LN_F;                // continuous
+  const chapterOfLevel = L => { let c = 0; for (let i = 0; i < CHAPTERS.length; i++) if (L >= CHAPTERS[i].from) c = i; return c; };
+
+  // ---- the catalogue, sorted into layers
+  const KINDS = KIND_LIST.map((k, i) => {
+    const o = Object.assign({}, k, {idx: i, layer: layerOfR(k.r)}); o.flat = o.layer >= 21; o.noShadow = o.layer >= 21;
+    o.parts = k.parts.filter(p => p[0] === 'C' && p[p.length - 1] === 'ink').concat(k.parts.filter(p => !(p[0] === 'C' && p[p.length - 1] === 'ink')));   // wheels go under the body
+    return o;
+  });
+  // where each kind stands: on the road, on the footpath, on a lot (inside a block), or - litter - anywhere, mostly along the kerb
+  const ZONES = {
+    road: ['car', 'van', 'bus', 'tram', 'foodtruck', 'trailer', 'caravan'],
+    walk: ['tree', 'bench', 'meter', 'hydrant', 'bin', 'vending', 'kiosk', 'shelter', 'table', 'oak', 'mailbox', 'bike', 'stall'],
+    lot: ['planter', 'cottage', 'church', 'petrol', 'garages', 'shed', 'bush', 'hedge', 'fountain', 'pool', 'castle', 'tent', 'circus', 'playpark', 'swim', 'court', 'container', 'sofa', 'pallets', 'skip', 'moped'],
+  };
+  for (const k of KINDS) { k.zone = 'any'; for (const z in ZONES) if (ZONES[z].indexOf(k.id) >= 0) k.zone = z; if (k.layer >= 7 && k.layer <= 13) k.zone = 'lot'; }
+  // ground: a country, a continent, a glacier, a great weather system are things other things stand on, so they block nothing; water is drawn
+  // under what floats on it but keeps houses out of itself. Everything else is solid and keeps smaller things out from under it.
+  for (const k of KINDS) { k.plate = ['island2', 'ice', 'country', 'continent', 'storm'].indexOf(k.id) >= 0; k.under = k.plate || ['lake', 'greatlake', 'archi', 'sea', 'ocean'].indexOf(k.id) >= 0; k.noShadow = k.noShadow || k.under; }
+  const BEYOND = KINDS_BEYOND.map((k, i) => ({idx: 1000 + i, id: k.id, name: k.name, r: 1, pal: k.pal, parts: k.gen(1), layer: 28, zone: 'any', beyond: true, flat: true, noShadow: true}));
+  const LAYERS = [];                                              // LAYERS[n] = kinds whose nominal radius falls in layer n
+  for (const k of KINDS) (LAYERS[k.layer] = LAYERS[k.layer] || []).push(k);
+  const LAST = LAYERS.length - 1;
+  function kindsOf(n) { return n <= LAST && LAYERS[n] && LAYERS[n].length ? LAYERS[n] : BEYOND; }
+
+  // ---- the floor: roads every 48 m * 10^k, 3/16 wide, a footpath of 1/20 each side
+  function bandAt(u, P) {                                         // distance to nearest road line -> 0 road, 1 footpath, 2 lot
+    const d = Math.abs(((u % P) + P * 1.5) % P - P / 2), rw = P * .1875 / 2, wk = P * .05;
+    return d < rw ? 0 : d < rw + wk ? 1 : 2;
+  }
+  // returns {zone: 'road'|'walk'|'lot', yaw}
+  function zoneAt(x, y) {
+    let bx = 2, by = 2;
+    for (let k = 0; k < 2; k++) { const P = 48 * Math.pow(10, k); bx = Math.min(bx, bandAt(x, P)); by = Math.min(by, bandAt(y, P)); }
+    if (bx === 0 && by !== 0) return {zone: 'road', yaw: Math.PI / 2};
+    if (by === 0 && bx !== 0) return {zone: 'road', yaw: 0};
+    if (bx === 0 && by === 0) return {zone: 'road', yaw: -1};
+    if (bx === 1 && by !== 1) return {zone: 'walk', yaw: Math.PI / 2};
+    if (by === 1 && bx !== 1) return {zone: 'walk', yaw: 0};
+    if (bx === 1 && by === 1) return {zone: 'walk', yaw: -1};
+    return {zone: 'lot', yaw: -1};
+  }
+
+  // ---- the world: chunk(seed, layer, cx, cy) -> list of things
+  const memo = new Map();
+  const NMAX = 70;
+  function chunk(seed, n, cx, cy) {
+    const key = seed + '|' + n + '|' + cx + '|' + cy;
+    let v = memo.get(key);
+    if (v) return v;
+    if (memo.size > 40000) memo.clear();
+    v = build(seed, n, cx, cy);
+    memo.set(key, v);
+    return v;
+  }
+  // ---- placement. Up to the city, things stand where they would in a street: vehicles in a lane of the road, benches and trees along the
+  // footpath at an even pitch, houses on the lots between the roads in rows, small litter mostly along the kerb. A slot is a place a
+  // thing may stand; whether it is taken, and by what, comes from a hash of the slot alone, so any cell can be asked for in any order.
+  const RW = 9, WK = 2.4, WALKC = RW / 2 + WK / 2 + .2, LOT0 = .14375, LOTW = .7125;
+  const lineDist = (u, P) => Math.abs(((u % P) + P * 1.5) % P - P / 2);
+  const hiOf = n => lo(n) * F;
+  function tierFor(n) { let k = 0; while (LOTW * 48 * Math.pow(10, k) < 2.2 * hiOf(n) && k < 7) k++; return k; }
+  const OCC = {road: .5, walk: .8, lot: .65, border: .5};
+  function slotCands(seed, n, type, x0, x1, y0, y1) {
+    const out = [], ks = kindsOf(n).filter(k => k.zone === type);
+    if (!ks.length) return out;
+    const hi = hiOf(n), p = 2.2 * hi, T = type === 'road' ? 11 : type === 'walk' ? 22 : 33, Hh = (a, b, c, d) => hash(seed ^ (n * 7919) ^ T, a, b, c * 8 + d);
+    const make = (kind, x, y, yaw, a, b, c) => {
+      const r = kind.r * (.88 + .24 * Hh(a, b, c, 5));
+      return {id: n + ':' + type[0] + ':' + a + ':' + b + ':' + c, kind: kind, layer: n, x: x, y: y, r: r, yaw: yaw, pick: Math.floor(Hh(a, b, c, 6) * 8), u: Hh(a, b, c, 7), seed: Math.floor(Hh(a, b, c, 4) * 1e9)};
+    };
+    const inside = (x, y) => x >= x0 && x < x1 && y >= y0 && y < y1;
+    if (type === 'road' || type === 'walk') {
+      for (let ax = 0; ax < 2; ax++) {
+        const A0 = ax ? y0 : x0, A1 = ax ? y1 : x1, B0 = ax ? x0 : y0, B1 = ax ? x1 : y1;       // A: across the line, B: along it
+        for (let side = (type === 'road' ? 0 : -1); side <= (type === 'road' ? 0 : 1); side += 2) {
+          for (let i = Math.floor((A0 - WALKC - 1) / 48); i <= Math.floor((A1 + WALKC + 1) / 48); i++) {
+            for (let k = Math.floor(B0 / p - .5); k <= Math.floor(B1 / p); k++) {
+              const al = (k + .5) * p, id = i * 2 + ax;
+              if (Hh(id, k, side + 1, 1) >= OCC[type]) continue;
+              const kind = ks[Math.floor(Hh(id, k, side + 1, 2) * ks.length)];
+              const r0 = kind.r * 1.12, off = type === 'road' ? (Hh(id, k, side + 1, 3) < .5 ? -1.8 : 1.8) : side * WALKC;
+              if (lineDist(al, 48) < RW / 2 + (type === 'walk' ? WK : 0) + r0 * 1.6) continue;       // never in a junction
+              const across = 48 * i + off, x = ax ? al : across, y = ax ? across : al;
+              if (!inside(x, y)) continue;
+              const yaw = (ax ? 0 : Math.PI / 2) + (type === 'road' && off < 0 ? Math.PI : 0);
+              out.push(make(kind, x, y, yaw, id, k, side + 1));
+            }
+          }
+        }
+      }
+      return n <= 6 ? out.filter(q => zoneAt(q.x, q.y).zone === type) : out;       // the broad roads of the next tier cut across the finer ones
+    }
+    const kt = tierFor(n), P = 48 * Math.pow(10, kt), side = LOTW * P;
+    const m = Math.max(1, Math.floor(side / p));
+    for (let j = Math.floor((y0 - side) / P); j <= Math.floor(y1 / P); j++) for (let i = Math.floor((x0 - side) / P); i <= Math.floor(x1 / P); i++) {
+      const ox = P * i + LOT0 * P, oy = P * j + LOT0 * P, lid = hash(i, j, kt, 77), quarter = Hh(i, j, kt, 9) < .5 ? 0 : Math.PI / 2;
+      if (hi <= 3.3 && kt === 0) {                                                                // yards and car-park-like lots: the whole lot is one thing in even rows, or lawn
+        if (Hh(i, j, 0, 8) >= .82) continue;
+        const kind = ks[Math.floor(Hh(i, j, 0, 2) * ks.length)], rows = Math.max(1, Math.floor((side - 2 * hi) / p)), step = (side - 2 * hi) / rows;
+        const a0 = Math.max(0, Math.floor((x0 - ox - hi) / step - .5)), a1 = Math.min(rows - 1, Math.ceil((x1 - ox - hi) / step)), b0 = Math.max(0, Math.floor((y0 - oy - hi) / step - .5)), b1 = Math.min(rows - 1, Math.ceil((y1 - oy - hi) / step));
+        for (let b = b0; b <= b1; b++) for (let a = a0; a <= a1; a++) {
+          if (Hh(i, j, a * 64 + b, 1) >= .8) continue;
+          const x = ox + hi + (a + .5) * step, y = oy + hi + (b + .5) * step;
+          if (!inside(x, y)) continue;
+          out.push(make(kind, x, y, quarter, i, j, a * 64 + b));
+        }
+      } else {
+        const sd = side / m, a0 = Math.max(0, Math.floor((x0 - ox) / sd - .5)), a1 = Math.min(m - 1, Math.ceil((x1 - ox) / sd)), b0 = Math.max(0, Math.floor((y0 - oy) / sd - .5)), b1 = Math.min(m - 1, Math.ceil((y1 - oy) / sd));
+        for (let b = b0; b <= b1; b++) for (let a = a0; a <= a1; a++) {
+          if (Hh(i, j, a * 64 + b, 1) >= OCC.lot) continue;
+          const x = ox + (a + .5) * side / m, y = oy + (b + .5) * side / m;
+          if (!inside(x, y)) continue;
+          out.push(make(ks[Math.floor(Hh(i, j, a * 64 + b, 2) * ks.length)], x, y, quarter + (Hh(i, j, a * 64 + b, 3) < .15 ? Math.PI : 0), i, j, a * 64 + b));
+        }
+      }
+    }
+    return n <= 6 ? out.filter(q => zoneAt(q.x, q.y).zone === 'lot') : out;
+  }
+  const PRIORITY = ['road', 'walk', 'lot'];
+  function clashes(seed, n, x, y, r, upTo) {                                                      // does it overlap a slot of a stronger kind of its own size?
+    const rr = hiOf(n) * 2.4 + r;
+    for (let t = 0; t < upTo; t++) {
+      const c = slotCands(seed, n, PRIORITY[t], x - rr, x + rr, y - rr, y + rr);
+      for (const q of c) if (Math.hypot(q.x - x, q.y - y) < q.r + r + Math.min(q.r, r) * .12) return true;
+    }
+    return false;
+  }
+  function curbDist(x, y) {                                                                       // 0 on the footpath, growing away from it
+    const f = u => { const d = lineDist(u, 48); return d < RW / 2 ? RW / 2 - d : d > RW / 2 + WK ? d - RW / 2 - WK : 0; };
+    return Math.min(f(x), f(y));
+  }
+  function build(seed, n, cx, cy) {
+    const out = [], C = cell(n), kinds = kindsOf(n);
+    const structured = n <= 13;
+    if (structured) {
+      const x0 = cx * C, y0 = cy * C, x1 = x0 + C, y1 = y0 + C;
+      for (let t = 0; t < 3; t++) {
+        const type = PRIORITY[t];
+        for (const o of slotCands(seed, n, type, x0, x1, y0, y1)) {
+          if (t > 0 && clashes(seed, n, o.x, o.y, o.r, t)) continue;
+          if (blocked(seed, n, o.x, o.y, o.r)) continue;
+          out.push(o);
+        }
+      }
+      if (n > 6) return out;
+      // litter: a few things loose in the cell, thick along the kerb and rare in the middle of a road
+      const any = kinds.filter(k => k.zone === 'any'); if (!any.length) return out;
+      const h = (a, b) => hash(seed ^ (n * 7919), cx * 31 + a, cy * 17 + b, 99 + a * 3 + b), hi = hiOf(n), rmax = hi * 1.1, free = Math.max(0, C - 2 * rmax);
+      const put = (kind, x, y, sub) => {
+        const r = kind.r * (.88 + .24 * h(5, 5 + sub));
+        if (out.some(q => Math.hypot(q.x - x, q.y - y) < q.r + r + Math.min(q.r, r) * .12) || clashes(seed, n, x, y, r, 3) || blocked(seed, n, x, y, r)) return null;
+        return {id: n + ':a:' + cx + ':' + cy + ':' + sub, kind: kind, layer: n, x: x, y: y, r: r, yaw: h(6, 6 + sub) * 6.2832, pick: Math.floor(h(7, 7 + sub) * 8), u: h(8, 8 + sub), seed: Math.floor(h(9, 9 + sub) * 1e9)};
+      };
+      const px = x0 + rmax + h(3, 3) * free, py = y0 + rmax + h(4, 4) * free, cd = curbDist(px, py), wantP = cd < 2.5 ? .95 : .55;
+      if (n >= 1 && h(2, 2) < .2 && cd < 4) {                                                       // a heap on the kerb: five to eight of a kind, a chain waiting to happen
+        const mx = x0 + C / 2, my = y0 + C / 2, cnt = 5 + Math.floor(h(11, 11) * 4), kind = any[Math.floor(h(10, 10) * any.length)];
+        for (let i = 0; i < cnt; i++) for (let t = 0; t < 6; t++) {
+          const a = h(12, 40 + i * 7 + t) * 6.2832, d = Math.sqrt(h(13, 40 + i * 7 + t)) * Math.max(0, C / 2 - kind.r * 1.3);
+          const o = put(kind, mx + Math.cos(a) * d, my + Math.sin(a) * d, i); if (o) { out.push(o); break; }
+        }
+      } else if (h(1, 1) < wantP) { const o = put(any[Math.floor(h(10, 10) * any.length)], px, py, 0); if (o) out.push(o); }
+      return out;
+    }
+    const h = (a, b) => hash(seed ^ (n * 7919), cx * 31 + a, cy * 17 + b, 99 + a * 3 + b);
+    if (h(1, 1) > .92) return out;
+    const hi = hiOf(n), rmax = hi * 1.1, free = Math.max(0, C - 2 * rmax);
+    const mk = (kind, x, y, sub) => {
+      const r = kind.r * (kind.beyond ? lo(n) * F * (.6 + .4 * h(5, 5 + sub)) : (.88 + .24 * h(5, 5 + sub)));
+      if (blocked(seed, n, x, y, r)) return null;
+      return {id: n + ':' + cx + ':' + cy + ':' + sub, kind: kind, layer: n, x: x, y: y, r: r, yaw: h(6, 6 + sub) * 6.2832, pick: Math.floor(h(7, 7 + sub) * 8), u: h(8, 8 + sub), seed: Math.floor(h(9, 9 + sub) * 1e9)};
+    };
+    if (h(2, 2) < .13 && kinds.length) {
+      const mx = cx * C + C / 2, my = cy * C + C / 2, cnt = 5 + Math.floor(h(11, 11) * 4), kind = kinds[Math.floor(h(10, 10) * kinds.length)];
+      for (let i = 0; i < cnt; i++) {
+        const o = mk(kind, mx, my, i); if (!o) continue;
+        for (let t = 0; t < 6; t++) {
+          const a = h(12, 40 + i * 7 + t) * 6.2832, d = Math.sqrt(h(13, 40 + i * 7 + t)) * Math.max(0, C / 2 - o.r * 1.15), x = mx + Math.cos(a) * d, y = my + Math.sin(a) * d;
+          if (out.some(q => Math.hypot(q.x - x, q.y - y) < q.r + o.r + Math.min(q.r, o.r) * .12)) continue;
+          o.x = x; o.y = y; if (!blocked(seed, n, x, y, o.r)) { out.push(o); break; }
+        }
+      }
+      return out;
+    }
+    const o = mk(kinds[Math.floor(h(10, 10) * kinds.length)], cx * C + rmax + h(3, 3) * free, cy * C + rmax + h(4, 4) * free, 0); if (o) out.push(o);
+    return out;
+  }
+  // would a thing of radius r at (x, y) in layer n overlap something larger (or the opening handful)?
+  function blocked(seed, n, x, y, r) {
+    if (Math.abs(x - SX) < 6 && Math.abs(y - SY) < 6) { for (const p of PRELUDE) if (Math.hypot(p.x - x, p.y - y) < p.r + r + .12) return true; }
+    for (let m = n + 1; m <= n + 5 && m < NMAX; m++) {
+      const C = cell(m), reach = lo(m) * F * 1.12 + r;
+      const i0 = Math.floor((x - reach) / C), i1 = Math.floor((x + reach) / C), j0 = Math.floor((y - reach) / C), j1 = Math.floor((y + reach) / C);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const list = chunk(seed, m, i, j);
+        for (let q = 0; q < list.length; q++) { const o = list[q]; if (!o.kind.plate && Math.hypot(o.x - x, o.y - y) < o.r + r + Math.min(o.r, r) * .12) return true; }
+      }
+    }
+    return false;
+  }
+  // the opening handful: five things a manhole could swallow, within four hole-radii of where you start
+  const PRELUDE = (() => {
+    const ids = ['can', 'cone', 'ball', 'can', 'bottle'], ang = [-2.2, -.9, .5, 1.7, 2.7], dist = [1.05, 1.5, 1.2, 1.6, 1.0], out = [];
+    for (let i = 0; i < 5; i++) { const k = KINDS.find(q => q.id === ids[i]); out.push({id: 'pre:' + i, kind: k, layer: 0, x: SX + Math.cos(ang[i]) * dist[i], y: SY + Math.sin(ang[i]) * dist[i], r: k.r, yaw: ang[i] * 2, pick: i, u: 0, seed: i * 77}); }
+    return out;
+  })();
+
+  // things in a rectangle, between two sizes, not yet eaten: [x0,x1] x [y0,y1], radii in [rmin, rmax]
+  function query(seed, x0, x1, y0, y1, rmin, rmax, eaten, out, lift) {   // lift: how far, in radii, a thing standing south of the rectangle may reach up into it
+    out = out || [];
+    let n0 = layerOfR(Math.max(rmin, .0001)), n1 = layerOfR(rmax);
+    for (let n = Math.max(0, n0 - 0); n <= n1; n++) {
+      const C = cell(n), pad = lo(n) * F * 1.12;
+      const i0 = Math.floor((x0 - pad) / C), i1 = Math.floor((x1 + pad) / C), j0 = Math.floor((y0 - pad) / C), j1 = Math.floor((y1 + pad * (1 + (lift || 0))) / C);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const list = chunk(seed, n, i, j);
+        for (let q = 0; q < list.length; q++) {
+          const o = list[q];
+          if (o.r < rmin || o.r > rmax || o.x + o.r < x0 || o.x - o.r > x1 || o.y + o.r < y0 || o.y - o.r * (1 + (lift || 0)) > y1) continue;
+          if (eaten && eaten.has(o.id)) continue;
+          out.push(o);
+        }
+      }
+    }
+    for (const p of PRELUDE) if (p.r >= rmin && p.r <= rmax && p.x + p.r >= x0 && p.x - p.r <= x1 && p.y + p.r >= y0 && p.y - p.r <= y1 && !(eaten && eaten.has(p.id))) out.push(p);
+    return out;
+  }
+
+  // how much of the smaller things are shown: 1 for anything over a third of the hole, none under a tenth. A thing keeps its rank u
+  // for good, so as you grow the dust thins and goes, and nothing ever appears out of nowhere.
+  function presence(r, R, u) {
+    const x = r / R; if (x >= .44) return 1;
+    const dens = x <= .15 ? 0 : Math.pow((x - .15) / .29, 1.5);
+    return Math.max(0, Math.min(1, (dens - u) / .12 + (u === 0 ? 1 : 0)));
+  }
+
+  // ---- how big the hole says it is. Anchors: [level, log10 of the diameter in metres]; physical up to the city, then the cosmos gets tall tales.
+  const ANCHORS = [[0, Math.log10(.8)], [7, Math.log10(.8 * Math.pow(F, 7))], [14, Math.log10(.8 * Math.pow(F, 14))], [21, 5.6], [28, 21.5]];
+  function log10Size(L) {
+    if (L <= 0) return ANCHORS[0][1] + L * (ANCHORS[1][1] - ANCHORS[0][1]) / 7;
+    for (let i = 1; i < ANCHORS.length; i++) if (L <= ANCHORS[i][0]) { const a = ANCHORS[i - 1], b = ANCHORS[i]; return a[1] + (b[1] - a[1]) * (L - a[0]) / (b[0] - a[0]); }
+    const a = ANCHORS[ANCHORS.length - 2], b = ANCHORS[ANCHORS.length - 1]; return b[1] + (b[1] - a[1]) / (b[0] - a[0]) * (L - b[0]);
+  }
+  const LY = 9.4607e15, AU = 1.496e11;
+  const UNI = 8.8e26, SUFFIX = ['', 'k ', 'M ', 'B ', 'T '];
+  function sizeText(L) {                                         // -> {digits: '1.84', unit: 'm', m: metres}
+    const m = Math.pow(10, log10Size(L));
+    let v, u;
+    if (m < 1e3) { v = m; u = 'm'; }
+    else if (m < 1e6) { v = m / 1e3; u = 'km'; }
+    else if (m < 1e9) { v = m / 1e6; u = 'Mm'; }
+    else if (m < AU) { v = m / 1e9; u = 'Gm'; }
+    else if (m < .1 * LY) { v = m / AU; u = 'AU'; }
+    else if (m < 1e3 * LY) { v = m / LY; u = 'ly'; }
+    else if (m < 1e6 * LY) { v = m / LY / 1e3; u = 'kly'; }
+    else if (m < 1e9 * LY) { v = m / LY / 1e6; u = 'Mly'; }
+    else if (m < UNI) { v = m / LY / 1e9; u = 'Gly'; }
+    else { v = m / UNI; let i = 0; while (v >= 999.5 && i < SUFFIX.length - 1) { v /= 1e3; i++; } u = SUFFIX[i] + (v === 1 ? 'universe' : 'universes'); if (v >= 999.5) v = 999; }
+    let d = v < 10 ? v.toFixed(2) : v < 100 ? v.toFixed(1) : String(Math.round(v));
+    return {digits: d, unit: u, m: m};
+  }
+  // the largest thing the hole has swallowed, for the end card, and a comparison for the size it reached
+  const LIKE = [[.8, 'a manhole cover'], [2, 'a front door'], [5, 'a car'], [12, 'a bus'], [30, 'a tennis court'], [100, 'a football pitch'], [330, 'the Eiffel Tower laid on its side'],
+    [1e3, 'a harbour'], [1e4, 'a small city'], [1e5, 'a whole country'], [1.3e7, 'the Earth'], [1.4e9, 'the Sun'], [3e12, 'the solar system'], [9.5e15, 'a star cluster'], [1e21, 'the Milky Way'], [1e23, 'a galaxy cluster'], [1e26, 'a supercluster'], [8.8e26, 'the observable universe']];
+  function likeText(m) { let best = LIKE[0]; for (const l of LIKE) if (m >= l[0] * .7) best = l; return best[1]; }
+
+  // ---- a run
+  function newRun(seed, opts) {
+    opts = opts || {};
+    return {
+      seed: seed | 0, t: 0, timeLeft: opts.time || TUNE.T0, over: false,
+      hole: {x: SX, y: SY, vx: 0, vy: 0, R: R0}, level: 0, eaten: new Set(), falling: [], touching: new Set(),
+      chain: 0, lastEat: -9, bestChain: 0, count: 0, biggest: null, bonusTime: 0, events: [], lastLevelT: 0,
+    };
+  }
+  const vmax = R => 4.6 * R, TAU = .1;
+  // one step. input: {x, y} each -1..1 (a direction and how hard), length clamped to 1.
+  function step(s, dt, input) {
+    if (s.over) return s;
+    const ev = s.events, H = s.hole;
+    s.t += dt; s.timeLeft -= dt;
+    let ix = input ? input.x : 0, iy = input ? input.y : 0; const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
+    const k = 1 - Math.exp(-dt / TAU), tv = vmax(H.R);
+    H.vx += (ix * tv - H.vx) * k; H.vy += (iy * tv - H.vy) * k;
+    H.x += H.vx * dt; H.y += H.vy * dt;
+    // things in reach
+    const R = H.R, reach = R * 2.2, cand = query(s.seed, H.x - reach, H.x + reach, H.y - reach, H.y + reach, R * .1, R * 60, s.eaten, []);
+    const nowTouch = new Set();
+    for (const o of cand) {
+      const d = Math.hypot(o.x - H.x, o.y - H.y);
+      if (o.r <= R * WALL) {
+        if (presence(o.r, R, o.u) < .5) continue;
+        if (d < Math.max(R * .25, R * 1.02 - o.r * .12)) swallow(s, o, d);
+      } else if (o.r < R * 8 && d < o.r + R * .5) {
+        nowTouch.add(o.id);
+        if (!s.touching.has(o.id)) ev.push({type: 'bonk', o: o});
+      }
+    }
+    s.touching = nowTouch;
+    // things going down
+    for (let i = s.falling.length - 1; i >= 0; i--) { const f = s.falling[i]; f.t += dt; if (f.t >= f.dur) s.falling.splice(i, 1); }
+    if (s.chain && s.t - s.lastEat > 1.15) s.chain = 0;
+    // growth into the next size
+    const L = Math.floor(levelOfR(H.R) + 1e-9);
+    while (s.level < L) {
+      s.level++; const lb = levelBonus(s.level); s.timeLeft += lb; s.bonusTime += lb;
+      ev.push({type: 'level', level: s.level, chapter: chapterOfLevel(s.level), chapterChanged: chapterOfLevel(s.level) !== chapterOfLevel(s.level - 1), bonus: lb});
+    }
+    if (s.timeLeft <= 0) { s.timeLeft = 0; s.over = true; ev.push({type: 'end'}); }
+    return s;
+  }
+  function swallow(s, o, d) {
+    const H = s.hole, ev = s.events, R0 = H.R;
+    s.eaten.add(o.id);
+    H.R = Math.sqrt(H.R * H.R + kappa(s.level) * o.r * o.r);
+    s.count++;
+    s.chain = s.t - s.lastEat <= 1.15 ? s.chain + 1 : 1; s.lastEat = s.t; if (s.chain > s.bestChain) s.bestChain = s.chain;
+    if (!s.biggest || o.r > s.biggest.r) s.biggest = {name: o.kind.name, r: o.r, layer: o.layer};
+    const rel = o.r / (H.R || 1), bonus = TUNE.eatBonus * rel * rel;   // a big mouthful buys time; dust buys none
+    s.timeLeft += bonus; s.bonusTime += bonus;
+    s.falling.push({o: o, t: 0, dur: FALL, d: d, ox: o.x, oy: o.y, hx: H.x, hy: H.y, spin: (o.seed % 2 ? 1 : -1) * (1.6 + (o.seed % 7) * .2)});
+    ev.push({type: 'swallow', o: o, chain: s.chain, rel: rel, bonus: bonus});
+    // the moment the game is about: things that were walls a moment ago and are mouthfuls now
+    const lo2 = R0 * WALL, hi2 = H.R * WALL, reach = H.R * 9;
+    if (hi2 > lo2 * 1.0005) {
+      const fresh = query(s.seed, H.x - reach, H.x + reach, H.y - reach * 1.6, H.y + reach * 1.6, lo2 * 1.0001, hi2, s.eaten, []).filter(q => q.r > lo2 && q.r <= hi2 && presence(q.r, H.R, q.u) >= .5);
+      if (fresh.length) ev.push({type: 'unlock', list: fresh.slice(0, 24)});
+    }
+  }
+
+  // ---- saves trust nothing
+  function cleanSave(raw) {
+    const n = (v, lo, hi, d) => typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d;
+    const out = {best: 0, bestName: '', days: {}, runs: 0, eaten: 0, hinted: false, mute: false, lastSeed: 0};
+    if (!raw || typeof raw !== 'object') return out;
+    out.best = n(raw.best, 0, 80, 0); out.runs = Math.floor(n(raw.runs, 0, 1e7, 0)); out.eaten = Math.floor(n(raw.eaten, 0, 1e9, 0));
+    out.hinted = raw.hinted === true; out.mute = raw.mute === true; out.lastSeed = Math.floor(n(raw.lastSeed, 0, 2147483647, 0));
+    out.bestName = typeof raw.bestName === 'string' ? raw.bestName.slice(0, 40) : '';
+    if (raw.days && typeof raw.days === 'object' && !Array.isArray(raw.days)) {
+      const keys = Object.keys(raw.days).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && typeof raw.days[k] === 'number' && isFinite(raw.days[k])).sort().slice(-60);
+      for (const k of keys) out.days[k] = n(raw.days[k], 0, 80, 0);
+    }
+    return out;
+  }
+  const dayKey = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const daySeed = key => { let h = 2166136261; for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619); return (h >>> 0) % 2147483647 + 1; };
+
+  return {F, R0, LO0, WALL, TUNE, kappa, levelBonus, SX, SY, FALL, CHAPTERS, KINDS, BEYOND, LAYERS, PRELUDE,
+    hash, lo, layerOfR, levelOfR, chapterOfLevel, kindsOf, zoneAt, chunk, query, presence, sizeText, likeText, log10Size,
+    newRun, step, vmax, cleanSave, dayKey, daySeed, clearMemo: () => memo.clear()};
+})();
+
+</script>
+<script id="art">
+// ---- NUMERALS: the odometer's own figures. Monoline, round-capped, 40 x 64; the zero is the hole - dark in the middle.
+const GLYPH = {
+  '0': 'M20 7C9 7 7 18 7 32s2 25 13 25 13-11 13-25S31 7 20 7z',
+  '1': 'M9 20 22 7V57',
+  '2': 'M8 19C8 7 32 7 32 20c0 13-24 21-24 37H33',
+  '3': 'M9 11H31L18 29C35 26 36 57 9 53',
+  '4': 'M27 57V7L7 41H35',
+  '5': 'M31 8H11L9 30C28 22 34 38 31 47 29 60 13 59 8 52',
+  '6': 'M30 10C15 5 7 21 7 38c0 21 26 24 26 7 0-16-24-16-26-3',
+  '7': 'M8 9H32L16 57',
+  '8': 'M20 31C8 31 8 7 20 7s12 24 0 24C4 31 4 57 20 57s16-26 0-26',
+  '9': 'M10 55C25 60 33 43 33 26 33 5 7 5 7 21c0 15 24 15 26 3',
+  '.': null,
+};
+function numeralSVG(ch, w, color, hole) {      // -> markup for one character, w px wide per digit cell
+  if (ch === '.') return '<svg viewBox="0 0 16 64" width="' + w * .4 + '" height="' + w * 1.6 + '"><circle cx="8" cy="54" r="5.5" fill="' + color + '"/></svg>';
+  const d = GLYPH[ch]; if (!d) return '';
+  const zero = ch === '0' && hole;                                            // on the result card the zeros are little holes; on the HUD they stay plain so they read at a glance
+  return '<svg viewBox="0 0 40 64" width="' + w + '" height="' + w * 1.6 + '"><path d="' + d + '"' + (zero ? ' fill="#08040f"' : ' fill="none"') + ' stroke="' + (zero ? '#7a4dff' : color) + '" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+// the wordmark: the same monoline hand. The O is the hole.
+const WORD = {V: 'M7 8 20 56 33 8', I: 'M20 8V56', D: 'M9 8V56H17C40 56 40 8 17 8z'};
+function wordSVG(c, w) {
+  if (c === 'O') return '<svg viewBox="0 0 54 64" width="' + w * 1.35 + '" height="' + w * 1.6 + '"><circle cx="24" cy="34" r="20" fill="none" stroke="#ff4fa3" stroke-width="9"/><circle cx="28" cy="32" r="20" fill="#08040f" stroke="#7a4dff" stroke-width="9"/><circle cx="28" cy="32" r="15.5" fill="none" stroke="rgba(255,232,250,.9)" stroke-width="1.6"/></svg>';
+  const d = WORD[c]; if (!d) return '';
+  return '<svg viewBox="0 0 40 64" width="' + w + '" height="' + w * 1.6 + '"><path d="' + d + '" fill="none" stroke="#2a1c18" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+// ---- ART: palette, solids in a 3/4 oblique view, shadows. Draws with a 2D context; knows nothing about the game state.
+const PAL = {ink: '#14111f', cre: '#f1e6cf', tom: '#e8553d', och: '#eca72c', tea: '#2a9d8f', mos: '#6a994e', plu: '#8c4a3c',
+  sky: '#5aa7d6', win: '#2f3d4d', sla: '#6e675d', san: '#d9b98a', whi: '#ffffff', gol: '#ffd36b', mag: '#e8553d', sea: '#2c6e9b', ice: '#dff3f7'};
+const KX = 0.08, KY = 0.4;                       // where "up" points on screen: (KX, -KY) per unit of height
+const LIGHT = (() => { const v = [-.40, -.50, .77], n = Math.hypot(...v); return v.map(x => x / n); })();
+
+const _hex = new Map();
+function rgb(c) {
+  let v = _hex.get(c);
+  if (!v) { const s = PAL[c] || c; v = [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)]; _hex.set(c, v); }
+  return v;
+}
+const _mix = new Map();
+// mix(a, b, t): a toward b by t, as a css colour. Cached on the quantised inputs.
+function mix(a, b, t) {
+  const k = a + '|' + b + '|' + Math.round(t * 64);
+  let v = _mix.get(k);
+  if (!v) {
+    const A = rgb(a), B = rgb(b), q = Math.round(t * 64) / 64;
+    v = 'rgb(' + Math.round(A[0] + (B[0] - A[0]) * q) + ',' + Math.round(A[1] + (B[1] - A[1]) * q) + ',' + Math.round(A[2] + (B[2] - A[2]) * q) + ')';
+    if (_mix.size > 6000) _mix.clear();
+    _mix.set(k, v);
+  }
+  return v;
+}
+// a face with outward normal n, in colour c, as lit by the dusk: top 1.0, west .89, south .64, east .67
+let DIM = 0, OUT = null, FLAT = false;                           // OUT: {c: colour, w: px} draws every solid as a flat silhouette in colour c, w px fatter: the glow round a thing that fits
+const TAU2 = 6.2832;                                      // 0..1: how far everything drawn is pushed into the dusk (things too big to swallow)
+function lit(c, n, bias) {
+  const b = .8 + .26 * (n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]) + (bias || 0);
+  const v = b >= 1 ? mix(c, 'whi', Math.min(.12, b - 1) * .6) : mix('ink', c, Math.max(.45, b));
+  return DIM > 0 ? mixCss(v, DIM) : v;
+}
+function mixCss(css, t) {                         // css 'rgb(r,g,b)' toward the dusk colour
+  const m = css.match(/\d+/g); const k = 'D' + css + Math.round(t * 32);
+  let v = _mix.get(k);
+  if (!v) { v = 'rgb(' + Math.round(m[0] * (1 - t) + 150 * t) + ',' + Math.round(m[1] * (1 - t) + 142 * t) + ',' + Math.round(m[2] * (1 - t) + 134 * t) + ')'; _mix.set(k, v); }
+  return v;
+}
+const N_TOP = [0, 0, 1], N_S = [0, 1, 0], N_W = [-1, 0, 0], N_E = [1, 0, 0], N_N = [0, -1, 0];
+
+// ---- primitives. (x, y) are screen pixels of the part's footprint centre, sizes in pixels.
+function poly(ctx, pts, fill) {
+  ctx.fillStyle = OUT ? OUT.c : fill; ctx.beginPath(); ctx.moveTo(pts[0], pts[1]);
+  for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+  ctx.closePath(); ctx.fill();
+  if (OUT) { ctx.strokeStyle = OUT.c; ctx.lineWidth = OUT.w * 2; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+function dot(ctx, x, y, r, fillStyle) {
+  ctx.fillStyle = OUT ? OUT.c : fillStyle; ctx.beginPath(); ctx.arc(x, y, r + (OUT ? OUT.w : 0), 0, TAU2); ctx.fill();
+}
+function prism(ctx, P, h0, h1, col) {            // P: flat [x0,y0,x1,y1,...] ground polygon in screen px
+  const n = P.length / 2;
+  let A = 0;
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; A += P[2 * i] * P[2 * j + 1] - P[2 * j] * P[2 * i + 1]; }
+  const sg = A > 0 ? 1 : -1;
+  const ux = KX, uy = -KY;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, ax = P[2 * i], ay = P[2 * i + 1], bx = P[2 * j], by = P[2 * j + 1];
+    let nx = (by - ay) * sg, ny = -(bx - ax) * sg;
+    const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l;
+    if (nx * ux + ny * uy >= 0) continue;
+    poly(ctx, [ax + h0 * ux, ay + h0 * uy, bx + h0 * ux, by + h0 * uy, bx + h1 * ux, by + h1 * uy, ax + h1 * ux, ay + h1 * uy], lit(col, [nx, ny, 0]));
+  }
+  const T = []; for (let i = 0; i < n; i++) T.push(P[2 * i] + h1 * ux, P[2 * i + 1] + h1 * uy);
+  poly(ctx, T, lit(col, N_TOP));
+}
+function cylinder(ctx, x, y, r, h0, h1, col) {
+  const bx = x + h0 * KX, by = y - h0 * KY, tx = x + h1 * KX, ty = y - h1 * KY;
+  const g = ctx.createLinearGradient(x - r, 0, x + r, 0);
+  g.addColorStop(0, lit(col, N_W)); g.addColorStop(.55, lit(col, N_S)); g.addColorStop(1, lit(col, N_E));
+  const o = OUT ? OUT.w : 0;
+  dot(ctx, bx, by, r, g);
+  ctx.fillStyle = OUT ? OUT.c : g;
+  const dx = tx - bx, dy = ty - by, l = Math.hypot(dx, dy) || 1, px = -dy / l * (r + o), py = dx / l * (r + o);
+  ctx.beginPath(); ctx.moveTo(bx + px, by + py); ctx.lineTo(tx + px, ty + py); ctx.lineTo(tx - px, ty - py); ctx.lineTo(bx - px, by - py); ctx.closePath(); ctx.fill();
+  dot(ctx, tx, ty, r, lit(col, N_TOP));
+}
+function disc(ctx, x, y, r, z, col) { dot(ctx, x + z * KX, y - z * KY, r, lit(col, N_TOP)); }
+function sphere(ctx, x, y, r, zc, col) {
+  const cx = x + zc * KX, cy = y - zc * KY;
+  if (FLAT) { flatBall(ctx, cx, cy, r, col); return; }
+  const g = ctx.createRadialGradient(cx - r * .38, cy - r * .42, r * .1, cx, cy, r * 1.05);
+  g.addColorStop(0, DIM ? mixCss(mix(col, 'whi', .32), DIM) : mix(col, 'whi', .32)); g.addColorStop(.45, DIM ? mixCss(mix('ink', col, .96), DIM) : mix('ink', col, .96)); g.addColorStop(1, DIM ? mixCss(mix('ink', col, .55), DIM) : mix('ink', col, .55));
+  dot(ctx, cx, cy, r, g);
+}
+// a printed planet: a flat disc, a shaded crescent under hatch, a lit cap, one ink line round it
+function flatBall(ctx, cx, cy, r, col) {
+  if (OUT) { dot(ctx, cx, cy, r, col); return; }
+  ctx.fillStyle = mix('ink', col, .55); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU2); ctx.fill();
+  const hp = hatch(ctx);
+  if (hp && r > 6) { ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU2); ctx.clip(); ctx.fillStyle = hp; ctx.globalAlpha = .55; ctx.fillRect(cx - r, cy - r, r * 2, r * 2); ctx.restore(); }
+  ctx.fillStyle = mix(col, 'whi', .06); ctx.beginPath(); ctx.arc(cx - r * .13, cy - r * .15, r * .84, 0, TAU2); ctx.fill();
+  ctx.fillStyle = mix(col, 'whi', .38); ctx.beginPath(); ctx.arc(cx - r * .38, cy - r * .42, r * .2, 0, TAU2); ctx.fill();
+  ctx.strokeStyle = '#2a1c18'; ctx.lineWidth = Math.max(1.2, r * .035); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU2); ctx.stroke();
+}
+function cone(ctx, x, y, r, h0, h1, col) {
+  const bx = x + h0 * KX, by = y - h0 * KY, ax = x + h1 * KX, ay = y - h1 * KY;
+  const vx = ax - bx, vy = ay - by, d = Math.hypot(vx, vy);
+  const g = ctx.createLinearGradient(x - r, 0, x + r, 0);
+  g.addColorStop(0, lit(col, N_W)); g.addColorStop(.55, lit(col, N_S)); g.addColorStop(1, lit(col, N_E));
+  dot(ctx, bx, by, r, g);
+  if (d <= r) return;
+  const f = Math.atan2(vy, vx), t = Math.acos(r / d);
+  ctx.fillStyle = OUT ? OUT.c : g;
+  ctx.beginPath(); ctx.moveTo(bx + r * Math.cos(f + t), by + r * Math.sin(f + t)); ctx.lineTo(ax, ay);
+  ctx.lineTo(bx + r * Math.cos(f - t), by + r * Math.sin(f - t)); ctx.closePath(); ctx.fill();
+  if (OUT) { ctx.strokeStyle = OUT.c; ctx.lineWidth = OUT.w * 2; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+function face3(ctx, pts, n, col, bias) {               // pts: [x,y,z, ...] in screen px / px height
+  if (n[0] * KX - n[1] * KY - n[2] >= 0) return;   // turned away from the camera
+  ctx.fillStyle = OUT ? OUT.c : lit(col, n, bias); ctx.beginPath();
+  for (let i = 0; i < pts.length; i += 3) { const X = pts[i] + pts[i + 2] * KX, Y = pts[i + 1] - pts[i + 2] * KY; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+  ctx.closePath(); ctx.fill();
+  if (OUT) { ctx.strokeStyle = OUT.c; ctx.lineWidth = OUT.w * 2; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+// gable roof: eaves at z0 over a w x d footprint (w along the ridge), ridge at z1. cs/cc/sn: rotation of the footprint.
+function gable(ctx, x, y, w, d, z0, z1, col, cs, sn) {
+  const R = (lx, ly) => [x + lx * cs - ly * sn, y + lx * sn + ly * cs];
+  const a = R(-w / 2, -d / 2), b = R(w / 2, -d / 2), c = R(w / 2, d / 2), e = R(-w / 2, d / 2), m1 = R(-w / 2, 0), m2 = R(w / 2, 0);
+  const rise = z1 - z0, hd = d / 2, L = Math.hypot(rise, hd);
+  // slopes' normals, rotated with the footprint
+  const sx = -sn, sy = cs;                       // local +y axis in world
+  const nSouth = [sx * rise / L, sy * rise / L, hd / L], nNorth = [-sx * rise / L, -sy * rise / L, hd / L];
+  const gw = [-cs, -sn, 0];
+  // west gable end (triangle), then the slopes. Painter's order: the far (north) slope first.
+  face3(ctx, [a[0], a[1], z0, e[0], e[1], z0, m1[0], m1[1], z1], gw, col);
+  face3(ctx, [a[0], a[1], z0, b[0], b[1], z0, m2[0], m2[1], z1, m1[0], m1[1], z1], nNorth, col, .12);
+  face3(ctx, [e[0], e[1], z0, c[0], c[1], z0, m2[0], m2[1], z1, m1[0], m1[1], z1], nSouth, col, -.2);
+  if (!OUT) { ctx.strokeStyle = 'rgba(255,248,230,.45)'; ctx.lineWidth = Math.max(1, (z1 - z0) * .06); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(m1[0] + z1 * KX, m1[1] - z1 * KY); ctx.lineTo(m2[0] + z1 * KX, m2[1] - z1 * KY); ctx.stroke(); }
+}
+
+// ---- a kind, drawn: (sx, sy) the screen position of its ground centre, S pixels per metre (already includes the instance's size),
+// yaw in radians, pick = which colour of pal it wears. lean = [dx, dy] pixels the whole thing tilts toward the hole.
+function drawParts(ctx, parts, sx, sy, S, yaw, color, flat) {
+  FLAT = !!flat;
+  const cs = Math.cos(yaw), sn = Math.sin(yaw);
+  for (const p of parts) {
+    const t = p[0];
+    const lx = p[1], ly = p[2];
+    const px = sx + (lx * cs - ly * sn) * S, py = sy + (lx * sn + ly * cs) * S;
+    const col = p[p.length - 1] === '$' ? color : p[p.length - 1];
+    switch (t) {
+      case 'B': {
+        const w = p[3] * S / 2, d = p[4] * S / 2, z0 = p[5] * S, z1 = p[6] * S;
+        const c = [[-w, -d], [w, -d], [w, d], [-w, d]], P = [];
+        for (const [u, v] of c) P.push(px + u * cs - v * sn, py + u * sn + v * cs);
+        prism(ctx, P, z0, z1, col); break;
+      }
+      case 'C': cylinder(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, col); break;
+      case 'K': cone(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, col); break;
+      case 'M': crag(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, p[6], p[7], col); break;
+      case 'S': sphere(ctx, px, py, p[3] * S, p[4] * S, col); break;
+      case 'D': disc(ctx, px, py, p[3] * S, p[4] * S, col); break;
+      case 'G': gable(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, p[6] * S, col, cs, sn); break;
+      case 'H': band(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, col); break;
+      case 'O': ring(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, col); break;
+      case 'W': swirl(ctx, px, py, p[3] * S, p[4] * S, col, ART_TIME); break;
+      case 'Y': glow(ctx, px, py, p[3] * S, col); break;
+      case 'A': galaxy(ctx, px, py, p[3] * S, p[4], col, ART_TIME); break;
+      case 'F': blob(ctx, px, py, p[3] * S, p[4] * S, p[5] * S, p[6], col, yaw); break;
+      case 'T': sunburst(ctx, px, py, p[3] * S, p[4] * S, col); break;
+      case 'P': planet(ctx, px, py, p[3] * S, p[4] * S, p[5], col); break;
+    }
+  }
+}
+let ART_TIME = 0;
+function ring(ctx, x, y, r, z, w, col) {
+  ctx.strokeStyle = lit(col, N_TOP); ctx.lineWidth = Math.max(1, w); ctx.beginPath(); ctx.arc(x + z * KX, y - z * KY, r, 0, 6.2832); ctx.stroke();
+}
+function band(ctx, x, y, r, z, w, col) {          // a stripe round the front of a cylinder
+  if (OUT) return;
+  ctx.strokeStyle = lit(col, N_S); ctx.lineWidth = Math.max(1, w); ctx.beginPath(); ctx.arc(x + z * KX, y - z * KY, r, .05, 3.09); ctx.stroke();
+}
+function glow(ctx, x, y, r, col) {                // light, printed: four flat bands of ink, one inside the next
+  const c = rgb(col), o = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 4; i++) { ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (.1 + i * .1) + ')'; ctx.beginPath(); ctx.arc(x, y, r * (1 - i * .24), 0, TAU2); ctx.fill(); }
+  ctx.globalCompositeOperation = o;
+}
+function swirl(ctx, x, y, r, z, col, t) {         // a storm: curling arms round an eye
+  const X = x + z * KX, Y = y - z * KY, c = rgb(col);
+  ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',.3)'; ctx.beginPath(); ctx.arc(X, Y, r, 0, 6.2832); ctx.fill();
+  ctx.lineCap = 'round';
+  for (let a = 0; a < 4; a++) {
+    ctx.strokeStyle = 'rgba(255,255,255,' + (.8 - a * .05) + ')'; ctx.lineWidth = Math.max(1, r * .075); ctx.beginPath();
+    for (let i = 0; i <= 18; i++) { const u = i / 18, ang = a * 1.5708 + u * 4.4 + t * .1, rr = r * (.14 + .8 * u); const px = X + Math.cos(ang) * rr, py = Y + Math.sin(ang) * rr; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.stroke();
+  }
+}
+function galaxy(ctx, x, y, r, seed, col, t) {
+  glow(ctx, x, y, r * 1.05, col);
+  const arms = 3 + (seed % 2), rot = t * .03 + seed;
+  if (FLAT && r > 8) {                                      // printed: thick curled arms in two inks and a cream core
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let a = 0; a < arms; a++) {
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.strokeStyle = pass ? 'rgba(255,236,190,.9)' : 'rgba(' + rgb(col).join(',') + ',.95)'; ctx.lineWidth = r * (pass ? .06 : .14); ctx.beginPath();
+        for (let i = 0; i <= 14; i++) { const u = i / 14, ang = rot + a * 6.2832 / arms + u * 3.4, rr = r * (.12 + .84 * u), X = x + Math.cos(ang) * rr, Y = y + Math.sin(ang) * rr * .72; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#fff2cf'; ctx.beginPath(); ctx.ellipse(x, y, r * .2, r * .15, 0, 0, TAU2); ctx.fill();
+    ctx.strokeStyle = '#2a1c18'; ctx.lineWidth = Math.max(1, r * .02); ctx.stroke();
+    return;
+  }
+  const N = r > 30 ? 46 : 22;
+  for (let a = 0; a < arms; a++) for (let i = 0; i < N; i++) {
+    const u = i / N, ang = rot + a * 6.2832 / arms + u * 3.6 + Math.sin(i * 7.3 + a) * .12, rr = r * (.1 + .88 * u) * (1 + Math.sin(i * 12.9 + a * 3) * .04);
+    const sz = Math.max(1.2, r * (.03 - .018 * u)), X = x + Math.cos(ang) * rr, Y = y + Math.sin(ang) * rr * .72;
+    ctx.fillStyle = i % 5 === 0 ? 'rgba(255,224,170,' + (.9 - u * .5) + ')' : 'rgba(190,210,255,' + (.8 - u * .55) + ')';
+    ctx.fillRect(X - sz / 2, Y - sz / 2, sz, sz);
+  }
+}
+// a printed sun: sixteen rays, one ink line
+function sunburst(ctx, x, y, r, z, col) {
+  const cx = x + z * KX, cy = y - z * KY, n = 16;
+  ctx.beginPath(); for (let i = 0; i < n * 2; i++) { const a = i / (n * 2) * 6.2832, rr = i % 2 ? r * .74 : r * 1.12; i ? ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fillStyle = OUT ? OUT.c : mix(col, 'whi', .15); ctx.fill();
+  if (OUT) { ctx.strokeStyle = OUT.c; ctx.lineWidth = OUT.w * 2; ctx.stroke(); return; }
+  ctx.strokeStyle = '#2a1c18'; ctx.lineWidth = Math.max(1, r * .04); ctx.stroke();
+  ctx.fillStyle = mix(col, 'whi', .55); ctx.beginPath(); ctx.arc(cx, cy, r * .55, 0, 6.2832); ctx.fill();
+}
+function blob(ctx, x, y, r, z0, z1, seed, col, yaw) {   // an island, a country: a lumpy slab with a coast that wanders rather than zigzags
+  const P = [], n = 44;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * 6.2832 + yaw, w = .84 + .09 * Math.sin(a * 2 + seed * 1.7) + .06 * Math.sin(a * 3 + seed * 2.9) + .035 * Math.sin(a * 5 + seed * 3.1) + .02 * Math.sin(a * 9 + seed);
+    P.push(x + Math.cos(a) * r * w, y + Math.sin(a) * r * w);
+  }
+  prism(ctx, P, z0, z1, col);
+}
+// a mountain printed in facets: each face lit by where it points, snow above a ragged line (snow = 0..1 of the height, 0 for none), tf > 0 cuts the top off flat (a crater rim)
+function crag(ctx, x, y, r, z0, z1, snow, tf, col) {
+  const n = 8, sd = Math.abs(Math.round(x * 13 + y * 7 + r)) % 97, B = [], T = [];
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU2 + .3, w = .8 + .2 * Math.sin(i * 2.7 + sd) * Math.cos(i * 1.3 + sd * .7), c = Math.cos(a) * r * w, s = Math.sin(a) * r * w;
+    B.push([x + c, y + s, z0]); T.push([x + c * tf + (tf ? 0 : Math.sin(i * 1.9 + sd) * r * .05), y + s * tf, z1]);
+  }
+  const F = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, A = B[i], Bb = B[j], Ti = T[i], Tj = T[j];
+    const u = [Bb[0] - A[0], Bb[1] - A[1], 0], v = [Ti[0] - A[0], Ti[1] - A[1], Ti[2] - A[2]];
+    let nn = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const mx = (A[0] + Bb[0]) / 2 - x, my = (A[1] + Bb[1]) / 2 - y;
+    if (nn[0] * mx + nn[1] * my < 0) nn = [-nn[0], -nn[1], -nn[2]];
+    const l = Math.hypot(nn[0], nn[1], nn[2]) || 1; nn = [nn[0] / l, nn[1] / l, nn[2] / l];
+    F.push({i: i, j: j, n: nn, y: (A[1] + Bb[1] + Ti[1] + Tj[1]) / 4});
+  }
+  F.sort((a, b) => a.y - b.y);
+  const at = (A, Tt, f) => [A[0] + (Tt[0] - A[0]) * f, A[1] + (Tt[1] - A[1]) * f, A[2] + (Tt[2] - A[2]) * f];
+  for (const f of F) {
+    const A = B[f.i], Bb = B[f.j], Ti = T[f.i], Tj = T[f.j], bias = (f.i % 2 ? .05 : -.05);
+    if (snow > 0) {
+      const Pi = at(A, Ti, snow + .09 * Math.sin(f.i * 3.1 + sd)), Pj = at(Bb, Tj, snow + .09 * Math.sin(f.j * 3.1 + sd));
+      face3(ctx, A.concat(Bb, Pj, Pi), f.n, col, bias);
+      face3(ctx, Pi.concat(Pj, Tj, Ti), f.n, 'ice', bias);
+    } else face3(ctx, A.concat(Bb, Tj, Ti), f.n, col, bias);
+  }
+  if (tf > 0) face3(ctx, T.reduce((o, q) => o.concat(q), []), N_TOP, col, -.12);
+}
+function planet(ctx, x, y, r, zc, bands, col) {
+  const cx = x + zc * KX, cy = y - zc * KY;
+  sphere(ctx, x, y, r, zc, col);
+  if (!bands) return;
+  if (FLAT && !OUT) { ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU2); ctx.clip(); ctx.fillStyle = 'rgba(42,28,24,.2)'; for (let i = -3; i <= 3; i += 2) ctx.fillRect(cx - r, cy + i * r * .24 - r * .06, r * 2, r * .13); ctx.restore(); return; }
+  ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.2832); ctx.clip();
+  ctx.fillStyle = 'rgba(40,20,10,.16)';
+  for (let i = -3; i <= 3; i += 2) ctx.fillRect(cx - r, cy + i * r * .24 - r * .06, r * 2, r * .13);
+  ctx.fillStyle = 'rgba(255,240,210,.12)';
+  for (let i = -2; i <= 2; i += 2) ctx.fillRect(cx - r, cy + i * r * .24 - r * .05, r * 2, r * .1);
+  const g = ctx.createRadialGradient(cx - r * .4, cy - r * .45, r * .1, cx, cy, r * 1.1); g.addColorStop(0, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(10,5,30,.5)');
+  ctx.fillStyle = g; ctx.fillRect(cx - r, cy - r, r * 2, r * 2); ctx.restore();
+}
+// a far-off or tiny thing: its footprint as one slab (or one round post) in its main colour. Same silhouette, a twentieth of the strokes.
+function drawLod(ctx, k, sx, sy, S, yaw, color) {
+  measure(k); const ext = Math.max(k.bw, k.bd) / 2 * S;
+  let col = k.lodCol; if (!k.lodCol) { const p = k.parts.find(q => q[0] === 'B' || q[0] === 'C' || q[0] === 'S' || q[0] === 'K' || q[0] === 'F' || q[0] === 'G' || q[0] === 'P' || q[0] === 'D'); col = p ? p[p.length - 1] : '$'; k.lodCol = col; }
+  const c = col === '$' ? color : col, cs = Math.cos(yaw), sn = Math.sin(yaw), cx = sx + (k.bx * cs - k.by * sn) * S, cy = sy + (k.bx * sn + k.by * cs) * S, h = Math.min(k.hmax, Math.max(k.bw, k.bd) * 1.2) * S;
+  if (k.parts.length > 12 && ext > 14) {                                   // a district: its twelve biggest buildings, not all two hundred
+    if (!k.lodParts) k.lodParts = k.parts.filter(q => q[0] === 'B' || q[0] === 'S' || q[0] === 'C' || q[0] === 'K' || q[0] === 'F' || q[0] === 'D').map(q => [q, (q[3] || 1) * (q[4] || 1) * (q[6] || q[5] || 1)]).sort((a, b) => b[1] - a[1]).slice(0, 12).map(q => q[0]).sort((a, b) => (a[2] || 0) - (b[2] || 0));
+    drawParts(ctx, k.lodParts, sx, sy, S, yaw, color, k.flat); return;
+  }
+  if (k.round) { const r = Math.max(k.bw, k.bd) / 2 * S; if (h > r * .3) cylinder(ctx, cx, cy, r, 0, h * .8, c); else disc(ctx, cx, cy, r, 0, c); return; }
+  const w = k.bw * S / 2, d = k.bd * S / 2, P = [];
+  for (const [u, v] of [[-w, -d], [w, -d], [w, d], [-w, d]]) P.push(cx + u * cs - v * sn, cy + u * sn + v * cs);
+  prism(ctx, P, 0, h, c);
+}
+// SPRITES: a composite thing (a town, a district, a harbour) seen from far away is its own small picture. It is painted once, at the
+// size it is about to be shown at, and stamped from then on - so a downtown keeps all its towers instead of its twelve biggest.
+const SPR = new Map(), SPR_MAX = 140;
+function spritable(k) {
+  if (k.spr === undefined) k.spr = k.parts.length > 7 && !k.parts.some(p => 'AYT'.indexOf(p[0]) >= 0);
+  return k.spr;
+}
+function spriteOf(k, color, quarter, res, dim, sil, outl) {
+  const key = k.id + '|' + color + '|' + quarter + '|' + res + '|' + dim + '|' + (sil || '') + '|' + (outl || 0);
+  let s = SPR.get(key);
+  if (s) { SPR.delete(key); SPR.set(key, s); return s; }
+  measure(k);
+  const half = Math.max(Math.abs(k.bx), Math.abs(k.by)) + Math.max(k.bw, k.bd) / 2 + .001;
+  let S1 = res / 2 / k.r;
+  const tall = k.hmax * S1;
+  const pd = 4 + (outl || 0);
+  let wpx = (half * 2 * S1 + tall * KX + 2 * pd), hpx = (half * 2 * S1 + tall * KY + 2 * pd);
+  if (Math.max(wpx, hpx) > 1500) { S1 *= 1500 / Math.max(wpx, hpx); wpx = (half * 2 * S1 + k.hmax * S1 * KX + 2 * pd); hpx = (half * 2 * S1 + k.hmax * S1 * KY + 2 * pd); }
+  const c = document.createElement('canvas'); c.width = Math.ceil(wpx); c.height = Math.ceil(hpx);
+  const ox = -(half * S1 + pd), oy = -(half * S1 + k.hmax * S1 * KY + pd);
+  const g = c.getContext('2d'), od = DIM, oo = OUT;
+  DIM = dim;
+  if (outl) { OUT = {c: '#2a1c18', w: 0}; for (let i = 0; i < 8; i++) drawParts(g, k.parts, -ox + Math.cos(i * Math.PI / 4) * outl, -oy + Math.sin(i * Math.PI / 4) * outl, S1, quarter * Math.PI / 2, color, k.flat); }
+  OUT = sil ? {c: sil, w: 0} : null;
+  drawParts(g, k.parts, -ox, -oy, S1, quarter * Math.PI / 2, color, k.flat);
+  DIM = od; OUT = oo;
+  s = {c: c, ox: ox, oy: oy, S1: S1};
+  SPR.set(key, s);
+  if (SPR.size > SPR_MAX) SPR.delete(SPR.keys().next().value);
+  return s;
+}
+// stamp a thing's sprite where drawParts would have drawn it; grow: the px the silhouette is fattened by (for the outline round a thing that fits)
+function stampSprite(ctx, k, X, Y, S, yaw, color, dim, sil, grow, outl) {
+  const quarter = ((Math.round(yaw / (Math.PI / 2)) % 4) + 4) % 4, need = k.r * S * 2;
+  let res = 64; while (res < need && res < 512) res *= 2;
+  const s = spriteOf(k, color, quarter, res, sil ? 0 : dim, sil, sil ? 0 : outl), f = S / s.S1;
+  const w = s.c.width * f, h = s.c.height * f;
+  if (!grow) { ctx.drawImage(s.c, X + s.ox * f, Y + s.oy * f, w, h); return; }
+  const nst = grow < 3 ? 4 : 8, da = Math.PI * 2 / nst;
+  for (let i = 0; i < nst; i++) { const a = i * da + (nst === 4 ? Math.PI / 4 : 0); ctx.drawImage(s.c, X + s.ox * f + Math.cos(a) * grow, Y + s.oy * f + Math.sin(a) * grow, w, h); }
+}
+// measures of a kind: the bounding box of its footprint, its height, and whether it is round (so its shadow is an oval, not a slab).
+function measure(k) {
+  if (k.hmax !== undefined) return k;
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, h = 0, round = true;
+  for (const p of k.parts) {
+    const t = p[0], x = p[1], y = p[2];
+    let ex, ey, z;
+    if (t === 'B' || t === 'G') { ex = p[3] / 2; ey = p[4] / 2; z = p[6]; round = false; }
+    else if (t === 'Y' || t === 'A' || t === 'W') { ex = ey = p[3]; z = 0; }
+    else if (t === 'T') { ex = ey = p[3]; z = p[4]; }
+    else if (t === 'F') { ex = ey = p[3]; z = p[5]; }
+    else if (t === 'P') { ex = ey = p[3]; z = p[4] + p[3]; }
+    else if (t === 'S') { ex = ey = p[3]; z = p[4] + p[3]; }
+    else { ex = ey = p[3]; z = t === 'D' ? p[4] : p[5]; }
+    if (t === 'G') z = p[6];
+    x0 = Math.min(x0, x - ex); x1 = Math.max(x1, x + ex); y0 = Math.min(y0, y - ey); y1 = Math.max(y1, y + ey); h = Math.max(h, z);
+  }
+  k.bx = (x0 + x1) / 2; k.by = (y0 + y1) / 2; k.bw = x1 - x0; k.bd = y1 - y0; k.hmax = h; k.round = round;
+  return k;
+}
+const _hull = pts => {                              // convex hull, Andrew's monotone chain, flat [x,y,...] in and out
+  const P = []; for (let i = 0; i < pts.length; i += 2) P.push([pts[i], pts[i + 1]]);
+  P.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const p of P) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = P.length - 1; i >= 0; i--) { const p = P[i]; while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+};
+// cast shadow toward the south-east: the footprint swept along the light. Round things throw ovals, slabs throw slabs.
+function shadow(ctx, k, sx, sy, S, yaw, alpha) {
+  measure(k);
+  const hgt = Math.min(k.hmax, Math.max(k.bw, k.bd) * 1.3) * S, dx = hgt * .5, dy = hgt * .34;
+  const cs = Math.cos(yaw), sn = Math.sin(yaw), cx = sx + (k.bx * cs - k.by * sn) * S, cy = sy + (k.bx * sn + k.by * cs) * S;
+  ctx.fillStyle = 'rgba(60,36,30,' + alpha * .55 + ')'; ctx.beginPath();
+  if (k.round) {
+    const r = Math.max(k.bw, k.bd) / 2 * S, l = Math.hypot(dx, dy) || 1, px = -dy / l * r, py = dx / l * r;
+    ctx.arc(cx, cy, r, 0, 6.2832); ctx.moveTo(cx + dx + r, cy + dy); ctx.arc(cx + dx * .8, cy + dy * .8, r * .85, 0, 6.2832);
+    ctx.moveTo(cx + px, cy + py); ctx.lineTo(cx + dx * .8 + px * .85, cy + dy * .8 + py * .85); ctx.lineTo(cx + dx * .8 - px * .85, cy + dy * .8 - py * .85); ctx.lineTo(cx - px, cy - py);
+  } else {
+    const w = k.bw * S / 2, d = k.bd * S / 2, P = [];
+    for (const [u, v] of [[-w, -d], [w, -d], [w, d], [-w, d]]) { const X = cx + u * cs - v * sn, Y = cy + u * sn + v * cs; P.push(X, Y, X + dx, Y + dy); }
+    const H = _hull(P); ctx.moveTo(H[0][0], H[0][1]); for (let i = 1; i < H.length; i++) ctx.lineTo(H[i][0], H[i][1]); ctx.closePath();
+  }
+  ctx.fill();
+  const big = Math.max(k.bw, k.bd) * S + hgt > 320, hp = big ? null : hatch(ctx);    // the ink: a fine diagonal hatch over the flat tone, like a print
+  if (hp) { ctx.fillStyle = hp; ctx.globalAlpha = Math.min(1, alpha * 3.4); ctx.fill(); ctx.globalAlpha = 1; }
+}
+let _hatch = null;
+function hatch(ctx) {
+  if (_hatch === undefined) return null;
+  if (!_hatch) {
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 6; const g = c.getContext('2d');
+      g.strokeStyle = 'rgba(50,28,26,.95)'; g.lineWidth = 1.1; g.beginPath(); g.moveTo(-1, 7); g.lineTo(7, -1); g.moveTo(-1, 1); g.lineTo(1, -1); g.moveTo(5, 7); g.lineTo(7, 5); g.stroke();
+      _hatch = ctx.createPattern(c, 'repeat');
+    } catch (e) { _hatch = undefined; return null; }
+  }
+  return _hatch;
+}
+// ---- GROUND: the floor of every size of world, built from nested grids that only translate and scale with the camera.
+// Roads: tier k has a street every 48 m * 10^k, 3/16 of that wide, with a footpath each side - so a block of houses, a district,
+// a city and a region are the same picture at four sizes. Lots between them carry a patchwork of paving; above the city the
+// floor turns to land and sea blobs, and at the top to nebula.
+function hash3(i, j, k, s) {
+  let h = Math.imul(i | 0, 374761393) ^ Math.imul(j | 0, 668265263) ^ Math.imul(k | 0, 2147483629) ^ Math.imul(s | 0, 1274126177);
+  h = Math.imul(h ^ (h >>> 15), 2246822519); h = Math.imul(h ^ (h >>> 13), 3266489917); h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+const GROUND = {
+  lot: ['#b8c99a', '#d7bf8b', '#c2cb97', '#07090f'],
+  walk: ['#f1e6cf', '#f0e4c8', '#d9d2a8', '#07090f'],
+  road: ['#79726a', '#5d5660', '#8c8470', '#07090f'],
+  tones: [
+    ['#bccd9e', '#b2c392', '#c3d3a6', '#b8c99a', '#bfcf9f'],
+    ['#dcc48f', '#d2b97f', '#e3cc9a', '#cdb177', '#d8be86'],
+    ['#a6be7a', '#c9d49b', '#d9c98a', '#97b571', '#e3d4a0', '#b3c585', '#cfd8a2'],
+    ['#23304a', '#12304a', '#3a2a22', '#0f1d3a', '#1d3a44'],
+  ],
+};
+const _sm = (a, b, x) => { x = Math.min(1, Math.max(0, (x - a) / (b - a))); return x * x * (3 - 2 * x); };
+function blend(list, wts) {
+  let r = 0, g = 0, b = 0;
+  for (let c = 0; c < 4; c++) { const v = rgb(list[c]); r += v[0] * wts[c]; g += v[1] * wts[c]; b += v[2] * wts[c]; }
+  return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+}
+// weights: [block, city, world, cosmos], summing to 1.
+function drawGround(ctx, W, H, camX, camY, ppm, wts, seed, time) {
+  ctx.fillStyle = blend(GROUND.lot, wts); ctx.fillRect(0, 0, W, H);
+  const x0 = camX - W / 2 / ppm, x1 = camX + W / 2 / ppm, y0 = camY - H / 2 / ppm, y1 = camY + H / 2 / ppm;
+  const sx = x => (x - camX) * ppm + W / 2, sy = y => (y - camY) * ppm + H / 2;
+  // 1. patchwork in the lots and the sea of the world and the clouds of the cosmos
+  for (let t = 0; t < 22; t++) {
+    const G = 1.4 * Math.pow(4, t), px = G * ppm;
+    if (px < 38 || px > 5200) continue;
+    const a = _sm(38, 120, px) * (1 - _sm(1500, 5200, px));
+    if (a < .02) continue;
+    const i0 = Math.floor(x0 / G), i1 = Math.floor(x1 / G), j0 = Math.floor(y0 / G), j1 = Math.floor(y1 / G);
+    for (let c = 0; c < 4; c++) {
+      const w = wts[c] * a * (c < 3 ? .8 : 1); if (w < .02) continue;
+      ctx.globalAlpha = w;
+      const tn = GROUND.tones[c];
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const h = hash3(i, j, t, seed + c), X = sx(i * G), Y = sy(j * G);
+        if (c < 3) {
+          const m = Math.min(5, Math.max(1, px * (c === 2 ? .04 : .025)));
+          ctx.fillStyle = tn[(h * tn.length) | 0]; ctx.fillRect(X + m, Y + m, px - 2 * m, px - 2 * m);
+        } else if (px > 90) {                                // nebula: flat inked clouds, not gradients
+          const cx = X + px * (.2 + .6 * hash3(i, j, t, seed + 7)), cy = Y + px * (.2 + .6 * hash3(i, j, t, seed + 9)), rr = px * (.35 + .4 * h);
+          ctx.fillStyle = tn[(h * tn.length) | 0]; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, 6.2832); ctx.fill();
+          ctx.beginPath(); ctx.arc(cx + rr * .3, cy - rr * .25, rr * .6, 0, 6.2832); ctx.fill();
+        }
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+  if (wts[2] + wts[3] > .05) {                                   // land, sea and space are printed with the same fine hatch as the shadows
+    const hp = hatch(ctx); if (hp) { ctx.globalAlpha = (wts[2] * .1 + wts[3] * .16); ctx.fillStyle = hp; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
+  // 2. roads, tier by tier
+  const built = wts[0] + wts[1] + wts[2] * .35;
+  if (built > .02) {
+    const walk = blend(GROUND.walk, wts), road = blend(GROUND.road, wts);
+    for (let k = 0; k < 8; k++) {
+      const P = 48 * Math.pow(10, k), px = P * ppm;
+      if (px < 28 || px > 14000) continue;
+      const a = built * _sm(28, 80, px) * (1 - _sm(5000, 14000, px)); if (a < .02) continue;
+      const rw = P * .1875, wk = P * .05;
+      ctx.globalAlpha = a;
+      const i0 = Math.floor((x0 - rw) / P), i1 = Math.ceil((x1 + rw) / P), j0 = Math.floor((y0 - rw) / P), j1 = Math.ceil((y1 + rw) / P);
+      for (const col of [walk, road]) {
+        ctx.fillStyle = col; const e = col === walk ? rw / 2 + wk : rw / 2;
+        for (let i = i0; i <= i1; i++) ctx.fillRect(sx(i * P - e), 0, 2 * e * ppm, H);
+        for (let j = j0; j <= j1; j++) ctx.fillRect(0, sy(j * P - e), W, 2 * e * ppm);
+        if (col === road) {                                  // the asphalt is printed with a fine ink hatch
+          const hp = hatch(ctx);
+          if (hp && px > 60) { ctx.globalAlpha = a * .22; ctx.fillStyle = hp; for (let i = i0; i <= i1; i++) ctx.fillRect(sx(i * P - e), 0, 2 * e * ppm, H); for (let j = j0; j <= j1; j++) ctx.fillRect(0, sy(j * P - e), W, 2 * e * ppm); ctx.globalAlpha = a; }
+        }
+      }
+      if (k === 0 && 1.4 * ppm > 14) {                     // slab joints on the footpaths
+        ctx.save(); ctx.beginPath(); const e = rw / 2 + wk;
+        for (let i = i0; i <= i1; i++) ctx.rect(sx(i * P - e), 0, 2 * e * ppm, H);
+        for (let j = j0; j <= j1; j++) ctx.rect(0, sy(j * P - e), W, 2 * e * ppm);
+        ctx.clip(); ctx.strokeStyle = 'rgba(80,60,40,.14)'; ctx.lineWidth = 1; ctx.beginPath();
+        const g = 1.4; for (let X = Math.floor(x0 / g) * g; X < x1; X += g) { ctx.moveTo(sx(X), 0); ctx.lineTo(sx(X), H); }
+        for (let Y = Math.floor(y0 / g) * g; Y < y1; Y += g) { ctx.moveTo(0, sy(Y)); ctx.lineTo(W, sy(Y)); }
+        ctx.stroke(); ctx.restore();
+        // the road's own edge: a kerb line
+        ctx.strokeStyle = 'rgba(40,30,50,.35)'; ctx.lineWidth = Math.max(1, ppm * .12); ctx.beginPath();
+        for (let i = i0; i <= i1; i++) { ctx.moveTo(sx(i * P - rw / 2), 0); ctx.lineTo(sx(i * P - rw / 2), H); ctx.moveTo(sx(i * P + rw / 2), 0); ctx.lineTo(sx(i * P + rw / 2), H); }
+        for (let j = j0; j <= j1; j++) { ctx.moveTo(0, sy(j * P - rw / 2)); ctx.lineTo(W, sy(j * P - rw / 2)); ctx.moveTo(0, sy(j * P + rw / 2)); ctx.lineTo(W, sy(j * P + rw / 2)); }
+        ctx.stroke();
+      }
+      if (rw * ppm > 7) {                                    // dashes down the middle, skipping the junctions
+        ctx.strokeStyle = 'rgba(241,230,207,.55)'; ctx.lineWidth = Math.max(1, rw * ppm * .035);
+        const dash = rw * ppm * .22; ctx.setLineDash([dash, dash * 1.5]);
+        ctx.beginPath();
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+          const X = sx(i * P), Y = sy(j * P), L = (P - rw) * ppm;
+          ctx.moveTo(X, Y + rw * ppm / 2); ctx.lineTo(X, Y + rw * ppm / 2 + L);
+          ctx.moveTo(X + rw * ppm / 2, Y); ctx.lineTo(X + rw * ppm / 2 + L, Y);
+        }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  // 3a. manholes in the finest roads
+  { const Pm = 48, rm = .5 * ppm;
+    if (rm > 4 && built > .3) {
+      ctx.globalAlpha = built * _sm(4, 9, rm);
+      const i0 = Math.floor(x0 / Pm) - 1, i1 = Math.ceil(x1 / Pm) + 1, j0 = Math.floor(y0 / 17) - 1, j1 = Math.ceil(y1 / 17) + 1;
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        if (hash3(i, j, 5, seed) < .45) continue;
+        const X = sx(i * Pm - 1.7), Y = sy(j * 17 + hash3(i, j, 6, seed) * 6);
+        const vy = (j * 17) % Pm; if (Math.abs(((j * 17) % 48 + 48) % 48) < 6.5 || Math.abs(((j * 17) % 48 + 48) % 48 - 48) < 6.5) continue;   // not in a junction
+        ctx.fillStyle = 'rgba(40,34,30,.55)'; ctx.beginPath(); ctx.arc(X, Y, rm, 0, 6.2832); ctx.fill();
+        ctx.strokeStyle = 'rgba(241,230,207,.22)'; ctx.lineWidth = Math.max(1, rm * .12); ctx.beginPath(); ctx.arc(X, Y, rm * .8, 0, 6.2832); ctx.moveTo(X - rm * .8, Y); ctx.lineTo(X + rm * .8, Y); ctx.moveTo(X, Y - rm * .8); ctx.lineTo(X, Y + rm * .8); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } }
+  // 3. zebra crossings at the junctions of the finest streets, manholes in the road between them
+  const P = 48, rw = P * .1875, rp = rw * ppm;
+  if (rp > 36 && built > .3) {
+    const a = built * _sm(36, 90, rp);
+    ctx.globalAlpha = a * .3; ctx.fillStyle = '#f1e6cf';
+    const i0 = Math.floor((x0 - rw) / P), i1 = Math.ceil((x1 + rw) / P), j0 = Math.floor((y0 - rw) / P), j1 = Math.ceil((y1 + rw) / P);
+    const n = 10, bar = rw / n;
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const X = i * P, Y = j * P, off = rw / 2 + rw * .12, len = rw * .16;
+      for (let m = 0; m < n; m += 1) {
+        const o = -rw / 2 + (m + .3) * bar, th = bar * .4;
+        ctx.fillRect(sx(X + off), sy(Y + o), len * ppm, th * ppm);            // east arm (bars run along the road)
+        ctx.fillRect(sx(X - off - len), sy(Y + o), len * ppm, th * ppm);      // west arm
+        ctx.fillRect(sx(X + o), sy(Y + off), th * ppm, len * ppm);            // south arm
+        ctx.fillRect(sx(X + o), sy(Y - off - len), th * ppm, len * ppm);      // north arm
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+// ---- THE HOLE. A pit with a far wall, a swirl turning in the dark, and a thick glossy lip.
+// Drawn in two passes: the pit below the props, the lip above them, so it is never lost under something too big to swallow.
+const LIPS = ['#f6ecd6', '#8ff0e0', '#ff8a66', '#ffd36b'];
+// the ground round the lip is inked darker, in the same hatch as every other shadow
+function holeShadow(ctx, x, y, r) {
+  ctx.fillStyle = 'rgba(40,16,30,.2)'; ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.2832); ctx.fill();
+  const hp = hatch(ctx); if (hp) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.2832); ctx.arc(x, y, r * 1.02, 0, 6.2832, true); ctx.clip('evenodd'); ctx.fillStyle = hp; ctx.globalAlpha = .55; ctx.fillRect(x - r * 1.5, y - r * 1.5, r * 3, r * 3); ctx.restore(); }
+}
+function holeDisc(ctx, x, y, r, time, squash) {
+  const sq = squash || 0;
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(1 + sq, 1 - sq * .6); ctx.translate(-x, -y);
+  let g;
+  ctx.fillStyle = '#2a1c33'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();   // the far wall
+  ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.clip();
+  g = ctx.createRadialGradient(x, y + r * .2, 0, x, y + r * .2, r * 1.0);
+  g.addColorStop(0, '#000'); g.addColorStop(.6, '#030208'); g.addColorStop(1, '#0c0818');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y + r * .15, r * .94, 0, 6.2832); ctx.fill();
+  if (ctx.createConicGradient) {                                          // the swirl: two slow arms of violet light
+    const cg = ctx.createConicGradient(time * .8, x, y + r * .15);
+    cg.addColorStop(0, 'rgba(150,120,255,0)'); cg.addColorStop(.1, 'rgba(160,130,255,.34)'); cg.addColorStop(.26, 'rgba(150,120,255,0)');
+    cg.addColorStop(.5, 'rgba(255,140,200,0)'); cg.addColorStop(.6, 'rgba(255,120,190,.28)'); cg.addColorStop(.76, 'rgba(255,140,200,0)'); cg.addColorStop(1, 'rgba(150,120,255,0)');
+    const rg = ctx.createRadialGradient(x, y + r * .15, r * .1, x, y + r * .15, r * .94);
+    ctx.globalAlpha = 1; ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y + r * .15, r * .94, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = '#020108'; ctx.beginPath(); ctx.arc(x, y + r * .15, r * .22, 0, 6.2832); ctx.fill();   // the throat
+  }
+  ctx.restore();
+  ctx.restore();
+}
+// glow: 0..1 how near the next size is. Printed in two inks, violet and pink, a hair out of register - the one colour nothing else in the game uses.
+function holeLip(ctx, x, y, r, time, glow, squash) {
+  const sq = squash || 0;
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(1 + sq, 1 - sq * .6); ctx.translate(-x, -y);
+  const w = Math.max(5, r * .17), g0 = glow || 0, off = Math.max(1.5, r * .035);
+  if (g0 > .02) {                                           // near the next size the lip swells and brightens
+    ctx.strokeStyle = 'rgba(255,79,163,' + g0 * .35 + ')'; ctx.lineWidth = w * (1.6 + g0 * 1.6); ctx.beginPath(); ctx.arc(x, y, r + w * .5, 0, 6.2832); ctx.stroke();
+  }
+  ctx.strokeStyle = '#ff4fa3'; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(x + off * .9, y - off * .9, r + w * .5, 0, 6.2832); ctx.stroke();            // pink plate, shifted
+  ctx.strokeStyle = '#7a4dff'; ctx.lineWidth = w; ctx.beginPath(); ctx.arc(x - off * .5, y + off * .5, r + w * .5, 0, 6.2832); ctx.stroke();              // violet plate
+  ctx.strokeStyle = 'rgba(255,232,250,.9)'; ctx.lineWidth = Math.max(1.2, w * .2); ctx.beginPath(); ctx.arc(x, y, r + w * .2, 0, 6.2832); ctx.stroke();   // the lit inner edge
+  ctx.strokeStyle = '#08040f'; ctx.lineWidth = Math.max(1.5, w * .3); ctx.beginPath(); ctx.arc(x, y, r + w + w * .1, 0, 6.2832); ctx.stroke();           // a hard ink line round the outside
+  ctx.restore();
+}
+// cracks run out of the lip into the ground: it is being taken away, not painted over
+function holeCracks(ctx, x, y, r) {
+  ctx.strokeStyle = 'rgba(30,18,26,.42)'; ctx.lineWidth = Math.max(1.2, r * .035); ctx.lineCap = 'round'; ctx.beginPath();
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.399 + .4, l = r * (.28 + .22 * ((i * 37) % 10) / 10), a2 = a + (i % 2 ? .22 : -.22);
+    ctx.moveTo(x + Math.cos(a) * r * 1.22, y + Math.sin(a) * r * 1.22); ctx.lineTo(x + Math.cos(a) * (r * 1.22 + l * .6), y + Math.sin(a) * (r * 1.22 + l * .6)); ctx.lineTo(x + Math.cos(a2) * (r * 1.22 + l), y + Math.sin(a2) * (r * 1.22 + l));
+  }
+  ctx.stroke();
+}
+
+</script>
+<script id="game">
+// ---- THE PAGE: input, camera, drawing, sound, screens. Everything it knows about the rules it asks of VOID (the core).
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const INK = '#2a1c18';
+  const cv = $('stage'), ctx = cv.getContext('2d', {alpha: false});
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const smooth = (a, b, x) => { x = clamp((x - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const TAU = Math.PI * 2;
+
+  // ---- saves
+  const SAVE_KEY = 'void.v2';
+  let save = VOID.cleanSave(null);
+  try { save = VOID.cleanSave(JSON.parse(localStorage.getItem(SAVE_KEY))); } catch (e) {}
+  // (the page this one replaces kept nothing in storage, so there is no older progress to carry over)
+  const store = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} };
+
+  // ---- which street
+  const params = new URLSearchParams(location.search);
+  const today = VOID.dayKey(new Date());
+  let seedParam = parseInt(params.get('seed'), 10);
+  if (!(seedParam > 0)) seedParam = 0;
+  let streetSeed = seedParam || VOID.daySeed(today), streetIsDaily = !seedParam;
+
+  // ---- screen
+  let W = 0, H = 0, DPR = 1, P = 44, hx = 0, hy = 0, hx0 = 0, hy0 = 0, hxT = 0, hyT = 0;
+  function resize() {
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    P = clamp(Math.min(W, H) * .118, 40, 78);
+    hx0 = W / 2; hy0 = H * (H > W ? .56 : .54); hx = hx0; hy = hy0;
+    const hh = clamp(Math.min(W, H) * .17, 64, 88);
+    document.documentElement.style.setProperty('--h', hh + 'px');
+    badgeDirty = true;
+  }
+
+  // ---- state
+  const S = {
+    mode: 'title',          // title | play | pause | closing | result
+    run: null,
+    t: 0, rt: 0,             // wall clock seconds, render clock
+    cam: {x: VOID.SX, y: VOID.SY, R: VOID.R0, Rd: VOID.R0, vx: 0, vy: 0},
+    pan: {x: 0, y: 0},
+    squash: 0, squashV: 0, glow: 0, flash: 0, shake: 0, closeT: 0, closeFrom: 1,
+    pops: [], parts: [], rings: [], wob: new Map(), newly: new Map(), lastUnlock: -9, lastOdo: 0,
+    input: {x: 0, y: 0, active: false, ox: 0, oy: 0, px: 0, py: 0, kind: '', keys: {}, moved: false},
+    chapterShown: -1, bestBefore: 0, newBest: false, clockShown: 55, kick: 0, kickK: 0, gulp: 0, gulpV: 0, freeze: 0, lastBadge: null,
+  };
+  window.__void = {view: () => Object.assign(view(), {W: W, H: H, hx: hx, hy: hy}), S: S, VOID: VOID, tick: (dt, n) => { S.manual = true; for (let i = 0; i < (n || 1); i++) tick(dt); }, startRun: startRun, toTitle: toTitle, pause: pause};
+
+  // ---- sound: pitch is scale. The bigger the hole, the deeper everything speaks.
+  let AC = null, master = null, hum = null, humGain = null;
+  const sound = {on: !save.mute};
+  function audioInit() {
+    if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = AC.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
+      master = AC.createGain(); master.gain.value = sound.on ? .8 : 0; master.connect(comp); comp.connect(AC.destination);
+      const o1 = AC.createOscillator(), o2 = AC.createOscillator(); humGain = AC.createGain(); humGain.gain.value = 0;
+      o1.type = 'sine'; o2.type = 'triangle'; o1.frequency.value = 55; o2.frequency.value = 55.4;
+      const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+      o1.connect(lp); o2.connect(lp); lp.connect(humGain); humGain.connect(master); o1.start(); o2.start(); hum = {o1: o1, o2: o2, lp: lp};
+    } catch (e) { AC = null; }
+  }
+  function setMute(m) { sound.on = !m; save.mute = m; store(); if (master) master.gain.setTargetAtTime(m ? 0 : .8, AC.currentTime, .05); document.body.classList.toggle('muted', m); }
+  const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+  const baseHz = level => clamp(660 * Math.pow(2, -level / 8), 48, 880);
+  function tone(f0, f1, dur, vol, type, delay) {
+    if (!AC || !sound.on) return;
+    const t = AC.currentTime + (delay || 0), o = AC.createOscillator(), g = AC.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .008); g.gain.exponentialRampToValueAtTime(.0008, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + .05);
+  }
+  function noise(dur, vol, f, q, delay) {
+    if (!AC || !sound.on) return;
+    const t = AC.currentTime + (delay || 0), n = Math.floor(AC.sampleRate * dur), b = AC.createBuffer(1, n, AC.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    const s = AC.createBufferSource(); s.buffer = b; const fl = AC.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = q;
+    const g = AC.createGain(); g.gain.value = vol; s.connect(fl); fl.connect(g); g.connect(master); s.start(t);
+  }
+  const sfx = {
+    swallow(chain, rel, level) {
+      const f = baseHz(level) * Math.pow(2, PENT[Math.min(PENT.length - 1, Math.max(0, chain - 1))] / 12), v = .16 + .22 * Math.sqrt(Math.min(1, rel));
+      tone(f * 2.1, f, .13, v, 'sine'); tone(f * 4.02, f * 2, .07, v * .25, 'triangle'); noise(.09, v * .35, f * 3.5, 4);
+    },
+    bonk(level) { tone(baseHz(level) * .5, baseHz(level) * .36, .09, .13, 'triangle'); },
+    level(level, chapterChanged) {
+      const f = baseHz(level);
+      [0, 4, 7, 12].forEach((s, i) => tone(f * Math.pow(2, s / 12), f * Math.pow(2, s / 12) * 1.003, .9, .09, 'sine', i * .07));
+      tone(f * .5, f * .25, .8, .24, 'sine'); noise(.7, .1, 500 + f, .6);
+      if (chapterChanged) { tone(f * .25, f * .12, 1.6, .3, 'sine', .05); [0, 7, 12, 19].forEach((s, i) => tone(f * 2 * Math.pow(2, s / 12), f * 2 * Math.pow(2, s / 12), 1.4, .06, 'sine', .25 + i * .1)); }
+    },
+    unlock(n, level) { const f = baseHz(level) * 4; for (let i = 0; i < Math.min(3, n); i++) tone(f * Math.pow(2, [0, 4, 7][i] / 12), f * Math.pow(2, [0, 4, 7][i] / 12), .22, .05, 'sine', i * .05); },
+    tick() { tone(1500, 1200, .03, .05, 'square'); },
+    end() { tone(520, 60, 1.1, .3, 'sine'); noise(1, .14, 300, .7); },
+    start() { tone(220, 440, .25, .16, 'sine'); tone(330, 660, .25, .1, 'triangle', .05); },
+  };
+  function humSet(level, vol) {
+    if (!AC || !hum) return;
+    const f = clamp(baseHz(level) / 5, 24, 120), t = AC.currentTime;
+    hum.o1.frequency.setTargetAtTime(f, t, .3); hum.o2.frequency.setTargetAtTime(f * 1.006, t, .3); hum.lp.frequency.setTargetAtTime(120 + f * 3, t, .3);
+    humGain.gain.setTargetAtTime(sound.on ? vol : 0, t, .3);
+  }
+  const buzz = ms => { if (!reduce && navigator.vibrate) try { navigator.vibrate(ms); } catch (e) {} };
+
+  // ---- input
+  const inp = S.input;
+  function pointerVec() {
+    if (inp.kind === 'mouse') {
+      const dx = inp.px - hx, dy = inp.py - hy, d = Math.hypot(dx, dy), dead = P * .45, full = P * 2.6;
+      if (d < dead) return {x: 0, y: 0};
+      const m = clamp((d - dead) / (full - dead), 0, 1); return {x: dx / d * m, y: dy / d * m};
+    }
+    if (!inp.active) return {x: 0, y: 0};
+    const dx = inp.px - inp.ox, dy = inp.py - inp.oy, d = Math.hypot(dx, dy), full = clamp(Math.min(W, H) * .16, 56, 96);
+    if (d < 4) return {x: 0, y: 0};
+    const m = clamp(d / full, 0, 1); return {x: dx / d * m, y: dy / d * m};
+  }
+  function inputVec() {
+    if (inp.drive) return inp.drive;
+    const k = inp.keys; let x = (k.ArrowRight || k.d || k.D ? 1 : 0) - (k.ArrowLeft || k.a || k.A ? 1 : 0), y = (k.ArrowDown || k.s || k.S ? 1 : 0) - (k.ArrowUp || k.w || k.W ? 1 : 0);
+    if (x || y) { const l = Math.hypot(x, y); inp.kind = inp.kind === 'touch' ? 'touch' : 'key'; return {x: x / l, y: y / l}; }
+    return pointerVec();
+  }
+  cv.addEventListener('pointerdown', e => {
+    audioInit();
+    inp.kind = e.pointerType === 'mouse' ? 'mouse' : 'touch'; inp.px = e.clientX; inp.py = e.clientY;
+    if (inp.kind === 'touch') { inp.active = true; inp.ox = e.clientX; inp.oy = e.clientY; stickEl.style.left = e.clientX + 'px'; stickEl.style.top = e.clientY + 'px'; stickEl.classList.add('on'); }
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  cv.addEventListener('pointermove', e => {
+    inp.px = e.clientX; inp.py = e.clientY; if (e.pointerType === 'mouse') inp.kind = 'mouse';
+    if (inp.active) {
+      const full = clamp(Math.min(W, H) * .16, 56, 96), dx = inp.px - inp.ox, dy = inp.py - inp.oy, d = Math.hypot(dx, dy), m = Math.min(d, full) / (d || 1);
+      stickKnob.style.transform = 'translate(' + dx * m + 'px,' + dy * m + 'px)';
+      if (d > 8) inp.moved = true;
+    }
+  });
+  const endPtr = () => { inp.active = false; stickEl.classList.remove('on'); stickKnob.style.transform = ''; };
+  cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  addEventListener('keydown', e => {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) >= 0) e.preventDefault();
+    inp.keys[e.key] = true; audioInit();
+    if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { if (S.mode === 'play') pause(true); else if (S.mode === 'pause') pause(false); }
+    if ((e.key === 'Enter' || e.key === ' ') && S.mode === 'title') startRun(false);
+    if ((e.key === 'Enter' || e.key === ' ') && S.mode === 'result') startRun(false);
+    if (e.key === 'Enter' && S.mode === 'pause') pause(false);
+  });
+  addEventListener('keyup', e => { delete inp.keys[e.key]; });
+  addEventListener('blur', () => { inp.keys = {}; endPtr(); if (S.mode === 'play') pause(true); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && S.mode === 'play') pause(true); if (AC && document.hidden) AC.suspend(); });
+
+  // ---- elements
+  const stickEl = $('stick'), stickKnob = $('knob');
+  const ui = {plate: $('plate'), timer: $('timer'), title: $('title'), hud: $('hud'), pause: $('pause'), result: $('result'), card: $('card'), hand: $('hand'), tm: $('tm'), tmRing: $('tmring'), odo: $('odo'), unit: $('unit'),
+    badge: $('badge'), badgeRing: $('bring'), pops: $('pops'), best: $('bestline'), seedline: $('seedline')};
+  const bctx = $('bcv').getContext('2d');
+  let badgeKind = null, badgeDirty = true;
+
+  // ---- numerals in the DOM (the odometer, the clock, the wordmark)
+  const odoState = {chars: '', w: 0};
+  function setOdo(text, unit) {
+    const w = clamp(Math.min(W, H) * .085, 30, 42);
+    if (ui.unit.textContent !== unit) { ui.unit.textContent = unit; ui.unit.style.fontSize = unit.length > 7 ? '13px' : unit.length > 4 ? '15px' : ''; }
+    if (odoState.w !== w || odoState.chars.length !== text.length || odoState.chars.indexOf('.') !== text.indexOf('.')) {
+      odoState.w = w; odoState.chars = '';
+      ui.odo.innerHTML = [...text].map(c => '<span class="cell" style="width:' + (c === '.' ? w * .4 : w) + 'px;height:' + w * 1.6 + 'px">' + numeralSVG(c, w, INK) + '</span>').join('');
+    }
+    const cells = ui.odo.children;
+    for (let i = 0; i < text.length; i++) {
+      if (odoState.chars[i] === text[i]) continue;
+      const cell = cells[i], c = text[i];
+      cell.innerHTML = numeralSVG(c, w, INK);
+      if (!reduce && c !== '.' && odoState.chars[i] !== undefined && i < text.length - 2) { cell.classList.remove('pop'); void cell.offsetWidth; cell.classList.add('pop'); }
+    }
+    odoState.chars = text;
+  }
+  let tmText = '';
+  function setClock(secs) {
+    const t = String(Math.max(0, Math.ceil(S.clockShown)));
+    if (t === tmText) return; tmText = t;
+    ui.tm.innerHTML = [...t].map(c => numeralSVG(c, 14, 'currentColor')).join('');
+  }
+  function word(el, s, w) {
+    el.innerHTML = [...s].map(c => wordSVG(c, w)).join('');
+  }
+
+  // ---- screens
+  function show(el, on) { el.classList.toggle('on', on); el.setAttribute('aria-hidden', on ? 'false' : 'true'); }
+  function setMode(m) {
+    S.mode = m;
+    show(ui.title, m === 'title'); show(ui.pause, m === 'pause'); show(ui.result, m === 'result');
+    document.body.dataset.mode = m;
+  }
+  function startRun(newStreet) {
+    audioInit();
+    if (newStreet) { streetSeed = 1 + Math.floor(Math.random() * 2147483000); streetIsDaily = false; }
+    if (newStreet || S.mode !== 'title' || S.run.t > 0) S.run = VOID.newRun(streetSeed);
+    S.hold = .25; S.iris = 1;
+    S.bestBefore = save.best; S.newBest = false;
+    S.cam.x = S.run.hole.x; S.cam.y = S.run.hole.y; S.cam.R = S.cam.Rd = S.run.hole.R; S.cam.vx = S.cam.vy = 0;
+    S.squash = S.squashV = S.glow = S.flash = S.shake = 0; S.pops.length = 0; S.parts.length = 0; S.rings.length = 0; S.wob.clear(); S.newly.clear();
+    S.chapterShown = -1; tmText = ''; odoState.chars = ''; S.clockShown = S.run.timeLeft; S.kick = 0; S.gulp = S.gulpV = 0; S.freeze = 0; S.lastBadge = null; S.closeT = 0; S.lastTick = 99;
+    inp.moved = false;
+    ui.hud.classList.remove('low'); ui.card.classList.remove('on');
+    setMode('play'); sfx.start(); buzz(12);
+    if (!save.hinted) { showHint(); }
+    ui.seedline.textContent = '';
+    save.runs++; save.lastSeed = streetSeed; store();
+    updateHud(true);
+  }
+  function pause(on) {
+    if (on && S.mode === 'play') { setMode('pause'); humSet(0, 0); }
+    else if (!on && S.mode === 'pause') { setMode('play'); }
+  }
+  function toTitle() {
+    S.run = VOID.newRun(streetSeed); S.cam.x = S.run.hole.x; S.cam.y = S.run.hole.y; S.cam.R = S.cam.Rd = S.run.hole.R;
+    S.parts.length = 0; S.rings.length = 0; S.iris = 1; setMode('title'); updateTitle(); humSet(0, 0);
+  }
+  function updateTitle() {
+    const b = save.best > 0 ? VOID.sizeText(save.best) : null;
+    ui.best.textContent = b ? 'Best  Ø ' + b.digits + ' ' + b.unit : '';
+    ui.seedline.textContent = streetIsDaily ? 'Today’s street' : 'Street ' + streetSeed;
+  }
+  function showHint() {                                  // the stick itself, shown once: a ring and a knob that drags toward the nearest thing that fits
+    const run = S.run, H0 = run.hole, c = VOID.query(run.seed, H0.x - 8, H0.x + 8, H0.y - 8, H0.y + 8, 0, H0.R * VOID.WALL, run.eaten, []);
+    let best = null, bd = 1e9; for (const o of c) { const d = Math.hypot(o.x - H0.x, o.y - H0.y); if (d < bd) { bd = d; best = o; } }
+    const a = best ? Math.atan2(best.y - H0.y, best.x - H0.x) : -1.2, h = ui.hand;
+    h.style.left = (hx0 - 48) + 'px'; h.style.top = (Math.min(H - 150, hy0 + P * 3.6)) + 'px';
+    h.style.setProperty('--dx', Math.round(Math.cos(a) * 46) + 'px'); h.style.setProperty('--dy', Math.round(Math.sin(a) * 46) + 'px');
+    h.classList.add('on'); S.hintT = 0;
+  }
+  function endHint() { if (ui.hand.classList.contains('on')) { ui.hand.classList.remove('on'); save.hinted = true; store(); } }
+
+  // ---- HUD
+  function updateHud(force) {
+    const run = S.run; if (!run) return;
+    const L = Math.max(0, VOID.levelOfR(S.cam.Rd)), st = VOID.sizeText(L);
+    setOdo(st.digits, st.unit);
+    setClock(run.timeLeft);
+    ui.tmRing.style.strokeDashoffset = (207 * (1 - clamp(S.clockShown / 75, 0, 1))).toFixed(1);
+    const low = run.timeLeft < 10 && !run.over; if (ui.hud.classList.contains('low') !== low) ui.hud.classList.toggle('low', low);
+    // the badge: the smallest kind that does not yet fit, and how far you are from it
+    const R = run.hole.R, nx = nextKind(R);
+    if (nx !== badgeKind || badgeDirty) { if (badgeKind && nx !== badgeKind && S.mode === 'play') { ui.badge.classList.remove('pop'); void ui.badge.offsetWidth; ui.badge.classList.add('pop'); } badgeKind = nx; badgeDirty = false; drawBadge(); }
+    const prev = nx.prev, frac = clamp(Math.log(R / prev) / Math.log(nx.need / prev), 0, 1);
+    ui.badgeRing.style.strokeDashoffset = (207 * (1 - frac)).toFixed(1);
+    S.near = frac;
+  }
+  let kindsSorted = null;
+  function nextKind(R) {
+    if (!kindsSorted) kindsSorted = VOID.KINDS.slice().sort((a, b) => a.r - b.r);
+    let prev = VOID.R0;
+    for (const k of kindsSorted) { const need = k.r / VOID.WALL / 1.0; if (need > R * 1.0001) { k.need = need * 1.0; return Object.assign(k, {prev: Math.min(prev, R)}), k; } if (need > prev) prev = need; }
+    const k = VOID.BEYOND[0]; k.need = R * 1.85; k.prev = R; return k;
+  }
+  function drawBadge() {
+    const k = badgeKind, size = $('bcv').width; bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.clearRect(0, 0, size, size);
+    measure(k); const ext = Math.max(k.bw, k.bd, k.hmax * .55) || 1, s = size * .66 / ext;
+    bctx.save(); bctx.translate(0, 0);
+    const col = k.pal[0]; drawParts(bctx, k.parts, size / 2 - k.bx * s, size / 2 + size * .08 - k.by * s, s, 0, col);
+    bctx.restore();
+  }
+
+  // ---- popups and particles (all in screen space)
+  function pop(text, x, y, color, size, merge) {
+    const last = S.pops[S.pops.length - 1];
+    if (merge && last && last.merge && last.t < .35) { last.sum += parseFloat(text.slice(1)); last.text = '+' + last.sum.toFixed(1); last.t = Math.min(last.t, .08); last.s = Math.min(34, last.s + 2); return; }
+    S.pops.push({t: 0, text: text, x: x, y: y, c: color || '#fff6d8', s: size || 18, merge: !!merge, sum: merge ? parseFloat(text.slice(1)) : 0});
+  }
+  function crumbs(n, x, y, r, col, inward) {
+    if (reduce) n = Math.ceil(n / 3);
+    for (let i = 0; i < n; i++) { const a = Math.random() * TAU, sp = (40 + Math.random() * 110) * (P / 44); S.parts.push({x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, vx: Math.cos(a) * sp * (inward ? -.4 : 1), vy: Math.sin(a) * sp * (inward ? -.4 : 1) - 20, t: 0, life: .4 + Math.random() * .35, c: col, s: 1.6 + Math.random() * 2.4}); }
+    if (S.parts.length > 260) S.parts.splice(0, S.parts.length - 260);
+  }
+
+  // ---- view
+  function view() {
+    const cam = S.cam, ppm = P / cam.R;
+    return {ppm: ppm, x0: cam.x - hx / ppm, x1: cam.x + (W - hx) / ppm, y0: cam.y - hy / ppm, y1: cam.y + (H - hy) / ppm};
+  }
+  const wX = (v, x) => (x - S.cam.x) * v.ppm + hx, wY = (v, y) => (y - S.cam.y) * v.ppm + hy;
+  function chapterWeights(L) {
+    const w = [0, 0, 0, 0], b = [7, 14, 21];
+    let c = 0; const e = [];
+    for (let i = 0; i < 3; i++) e.push(smooth(b[i] - .9, b[i] + .9, L));
+    w[0] = 1 - e[0]; w[1] = e[0] * (1 - e[1]); w[2] = e[1] * (1 - e[2]); w[3] = e[2];
+    return w;
+  }
+
+  // ---- stars for the cosmos: three sheets that move by a small fraction of the camera (distant things move least)
+  function drawStars(wc) {
+    if (wc < .02) return;
+    const layers = [[.012, 220, 1, .5], [.03, 160, 1.4, .7], [.07, 120, 1.9, .9]];
+    for (let li = 0; li < layers.length; li++) {
+      const f = layers[li][0], tile = layers[li][1], n = 5, ox = S.pan.x * f, oy = S.pan.y * f;
+      const i0 = Math.floor(ox / tile), i1 = Math.floor((ox + W) / tile), j0 = Math.floor(oy / tile), j1 = Math.floor((oy + H) / tile);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) for (let k = 0; k < n; k++) {
+        const hh = hash3(i, j, k + li * 9, 5), x = (i + hash3(i, j, k, 11 + li)) * tile - ox, y = (j + hash3(i, j, k, 17 + li)) * tile - oy;
+        ctx.globalAlpha = wc * layers[li][3] * (.4 + .6 * hh); ctx.fillStyle = hh > .8 ? '#ffe9b0' : hh > .6 ? '#bfe3ff' : INK;
+        const sz = layers[li][2] * (.6 + hh); ctx.fillRect(x, y, sz, sz);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- drawing a frame
+  const sprFor = q => q.ext >= 10 && q.ext < 360 && spritable(q.k);
+  const lodFor = q => q.ext < 10 || (!sprFor(q) && ((q.k.parts.length > 7 && q.ext < 60) || (q.k.parts.length > 24 && q.ext < 260)));
+  // one thing, in one pass: out = {c, w} paints its silhouette (the outline round a thing that fits), dim = how far it is washed out
+  const paint = (q, X, Y, ang, col, out, dim, ol) => {
+    if (sprFor(q)) { if (out) stampSprite(ctx, q.k, X, Y, q.S, ang, col, 0, out.c, out.w); else stampSprite(ctx, q.k, X, Y, q.S, ang, col, dim || 0, null, 0, ol || 0); return; }
+    OUT = out || null; DIM = dim || 0;
+    if (lodFor(q)) drawLod(ctx, q.k, X, Y, q.S, ang, col); else drawParts(ctx, q.k.parts, X, Y, q.S, ang, col, q.k.flat);
+    OUT = null; DIM = 0;
+  };
+  function draw(dtr) {
+    const run = S.run; if (!run) return;
+    const H0 = run.hole, v = view(), R = H0.R, cam = S.cam, L = VOID.levelOfR(cam.Rd);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const shk = S.shake > .01 ? S.shake : 0, sx = shk ? (Math.random() - .5) * shk * 6 : 0, sy = shk ? (Math.random() - .5) * shk * 6 : 0;
+    ctx.translate(sx, sy);
+    const wts = chapterWeights(L);
+    const T0 = performance.now();
+    drawGround(ctx, W, H, cam.x, cam.y - (hy - H / 2) / v.ppm, v.ppm, wts, streetSeed & 0xffff, S.rt);
+    drawStars(wts[3]);
+    const T1 = performance.now();
+    // things: gather, shade, sort
+    const marg = Math.max(W, H) / v.ppm * .15, things = VOID.query(run.seed, v.x0 - marg, v.x1 + marg, v.y0 - marg * 1.6, v.y1 + marg, cam.R * .09, cam.R * 12, run.eaten, [], 3);
+    const hxw = H0.x, hyw = H0.y, hs = {x: wX(v, H0.x), y: wY(v, H0.y)};
+    const T2 = performance.now();
+    // the hole's disc, then the ground's shadows, then the solids
+    const hr = H0.R * v.ppm * (cam.Rd / cam.R > 0 ? 1 : 1);
+    const dispR = cam.Rd * v.ppm * (1 + S.gulp * .14);   // radius of the hole as drawn (grows ahead of the zoom, then the zoom catches up) and swells a little on every bite
+    const sq = S.squash;
+    holeShadow(ctx, hs.x, hs.y, dispR);
+    // a place does not show what belongs to the next chapter's floor until that floor is on its way: no moons on farmland
+    const ahead = n => { const c = n < 7 ? 0 : n < 14 ? 1 : n < 21 ? 2 : 3; let w = 0; for (let i = c; i < 4; i++) w += wts[i]; return c === 0 ? 1 : clamp((w - .03) / .35, 0, 1); };
+    const list = [];
+    for (const o of things) {
+      const k = measure(o.kind), pres0 = o.r > R ? clamp((cam.R * 12 - o.r) / (cam.R * 6), 0, 1) : VOID.presence(o.r, R, o.u), pres = pres0 * ahead(o.layer);
+      if (pres < .03) continue;
+      const S0 = v.ppm * o.r / o.kind.r, X = wX(v, o.x), Y = wY(v, o.y), ext = o.r * v.ppm;
+      if (ext < 1.2) continue;
+      const lift = k.hmax * S0 * KY, side = k.hmax * S0 * KX + ext, shd = Math.min(k.hmax, Math.max(k.bw, k.bd) * 1.3) * S0;   // a tall thing is drawn higher up the screen than the ground it stands on, and throws its shadow down and to the right
+      if (X + ext + side + shd * .5 < -60 || X - ext > W + 60 || Y + ext + shd * .34 < -60 || Y - ext - lift > H + 60) continue;
+      const fit = o.r <= R * VOID.WALL && pres >= .5, dxh = o.x - hxw, dyh = o.y - hyw, d = Math.hypot(dxh, dyh);
+      list.push({o: o, k: k, S: S0, X: X, Y: Y, pres: pres, fit: fit, d: d, ext: ext});
+    }
+    ctx.globalAlpha = 1;
+    for (const q of list) { if (q.k.noShadow) continue; ctx.globalAlpha = q.pres; shadow(ctx, q.k, q.X, q.Y, q.S, q.o.yaw, q.fit ? .18 : .15); }
+    ctx.globalAlpha = 1;
+    list.sort((a, b) => (b.k.under ? 1 : 0) - (a.k.under ? 1 : 0) || (a.k.under ? b.o.layer - a.o.layer : a.o.y - b.o.y));   // ground and water first, biggest first; then everything else from the back forward
+    const bob = reduce ? 0 : 1, fl = S.flash;
+    for (const q of list) {
+      const o = q.o, pal = o.kind.pal, col = pal[o.pick % pal.length];
+      let X = q.X, Y = q.Y;
+      const wb = S.wob.get(o.id); let ang = o.yaw;
+      if (wb) { const u = (S.rt - wb) / .45; if (u > 1) S.wob.delete(o.id); else { X += Math.sin(u * 30) * (1 - u) * P * .06 * (o.r * v.ppm > 6 ? 1 : 0); ang += Math.sin(u * 22) * (1 - u) * .08; } }
+      if (q.fit) {
+        const pull = clamp((R * 1.7 - q.d) / (R * 1.7), 0, 1); const pp = pull * pull * .14;
+        X += (hs.x - X) * pp; Y += (hs.y - Y) * pp;
+        const lean = pull * pull;
+        Y -= bob * (Math.abs(Math.sin(S.rt * 2.6 + o.seed % 7)) * o.r * v.ppm * .06 + o.r * v.ppm * .02);
+        let pulse = 0; const nw = S.newly.get(o.id);
+        if (nw !== undefined) { const u = (S.rt - nw) / 1.1; if (u > 1) S.newly.delete(o.id); else if (u > 0) pulse = Math.sin(Math.min(1, u) * Math.PI) * (1 - u * .3); }
+        const w = Math.max(1.6, Math.min(P * .05, o.r * v.ppm * .22)) * (1 + fl * 1.2 + pulse * 2.2), lod = lodFor(q);
+        const stretch = lean > .04 && !reduce, sa = Math.atan2(hs.y - Y, hs.x - X);
+        if (pulse > 0 || stretch) { ctx.save(); ctx.translate(X, Y); if (stretch) { ctx.rotate(sa); ctx.scale(1 + lean * .5, 1 - lean * .22); ctx.rotate(-sa); } ctx.scale(1 + pulse * .14, 1 + pulse * .14); ctx.translate(-X, -Y); }
+        ctx.globalAlpha = q.pres;
+        if (q.ext > 8) paint(q, X, Y, ang, col, {c: '#2a1c18', w: w + 1.6});
+        paint(q, X, Y, ang, col, {c: fl > .05 || pulse > .1 ? '#ffffff' : '#fff6d8', w: w});
+        paint(q, X, Y, ang, col, null);
+        if (pulse > 0 || stretch) ctx.restore();
+      } else {
+        ctx.globalAlpha = q.pres; const dim = o.r > R ? (o.kind.flat ? .3 : o.kind.under ? .16 : .34) : .2;
+        if (sprFor(q)) paint(q, X, Y, ang, col, null, dim, q.ext > 8 && !o.kind.flat ? 1.5 : 0);
+        else { if (q.ext > 8 && !o.kind.flat) paint(q, X, Y, ang, col, {c: '#2a1c18', w: Math.max(1, Math.min(2.2, q.ext * .05))}); paint(q, X, Y, ang, col, null, dim); }
+      }
+    }
+    ctx.globalAlpha = 1;
+    const T3 = performance.now();
+    holeDisc(ctx, hs.x, hs.y, dispR, S.rt * .9, sq);       // the pit goes over everything standing on it, so nothing can fill the hole
+    // things going down the hole
+    for (const f of run.falling) {
+      const u = clamp(f.t / f.dur, 0, 1), e = u * u, o = f.o, k = measure(o.kind), pal = o.kind.pal, col = pal[o.pick % pal.length];
+      const S0 = v.ppm * o.r / o.kind.r;
+      const ox = wX(v, f.ox), oy = wY(v, f.oy), hop = Math.sin(clamp(u / .32, 0, 1) * Math.PI) * dispR * .22 * clamp(o.r / run.hole.R * 1.6, .35, 1), X = lerp(ox, hs.x, e), Y = lerp(oy, hs.y, e) + e * dispR * .5 - hop, sc = S0 * (1 - .55 * e) * (1 + .12 * Math.sin(clamp(u / .32, 0, 1) * Math.PI));
+      ctx.save(); ctx.beginPath(); ctx.arc(hs.x, hs.y, dispR, 0, TAU); ctx.rect(hs.x - dispR * 4, hs.y - dispR * 9, dispR * 8, dispR * 9); ctx.clip();
+      if (!reduce) for (let i = 3; i >= 1; i--) { const e2 = Math.max(0, u - i * .09) ** 2; ctx.globalAlpha = .14; drawParts(ctx, o.kind.parts, lerp(ox, hs.x, e2), lerp(oy, hs.y, e2) + e2 * dispR * .5, S0 * (1 - .55 * e2), o.yaw + e2 * f.spin, col, o.kind.flat); }
+      ctx.globalAlpha = 1; drawParts(ctx, o.kind.parts, X, Y, sc, o.yaw + e * f.spin, col, o.kind.flat); ctx.restore();
+      ctx.save(); ctx.beginPath(); ctx.arc(hs.x, hs.y, dispR, 0, TAU); ctx.clip(); ctx.fillStyle = 'rgba(2,1,7,' + (.1 + e * .9) + ')'; ctx.fillRect(hs.x - dispR, hs.y - dispR, dispR * 2, dispR * 2); ctx.restore();
+    }
+    // lip on top
+    const closing = S.mode === 'closing' || S.mode === 'result';
+    holeLip(ctx, hs.x, hs.y, dispR, S.rt * .7, clamp(S.glow + (S.near || 0) * (S.near || 0) * .5, 0, 1), sq);
+    // rings and sparks
+    for (const r of S.rings) { if (r.t < 0) continue; const u = r.t / r.life; ctx.globalAlpha = (1 - u) * r.a; ctx.strokeStyle = r.c; ctx.lineWidth = r.w * (1 - u * .5); ctx.beginPath(); ctx.arc(hs.x, hs.y, dispR * lerp(1, r.k, 1 - (1 - u) * (1 - u)), 0, TAU); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+    for (const p of S.parts) { const u = p.t / p.life; ctx.globalAlpha = 1 - u; ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); }
+    ctx.globalAlpha = 1;
+    // motes drawn in: the pull, shown
+    if (!reduce) {
+      for (let i = 0; i < 18; i++) {
+        const ph = (S.rt * .35 + i / 18) % 1, a = i * 2.399 + S.rt * .2, rr = dispR * (1.2 + (1 - ph) * 2.6);
+        ctx.globalAlpha = Math.sin(ph * Math.PI) * .5; ctx.fillStyle = '#f6ecd6';
+        ctx.fillRect(hs.x + Math.cos(a) * rr, hs.y + Math.sin(a) * rr * .96, 1.6, 1.6);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // chapter-tinted dusk at the edges, darkest in the cosmos
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // the iris
+    if (S.mode === 'closing' || S.mode === 'result' || S.iris > 0) {
+      const u = S.mode === 'result' ? 1 : S.mode === 'closing' ? clamp(S.closeT, 0, 1) : S.iris, e = u * u * (3 - 2 * u), rr = Math.hypot(W, H) * (1 - e) + dispR * 2.4 * e;
+      const g = ctx.createRadialGradient(hs.x, hs.y, Math.min(rr, dispR * 2.4) * .6, hs.x, hs.y, rr + 1); g.addColorStop(0, 'rgba(18,10,16,0)'); g.addColorStop(1, 'rgba(18,10,16,' + (.9 * e) + ')');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(18,10,16,' + (.9 * e) + ')';
+      if (rr < Math.hypot(W, H)) { ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(hs.x, hs.y, rr, 0, TAU, true); ctx.fill('evenodd'); }
+      holeDisc(ctx, hs.x, hs.y, dispR, S.rt, 0); holeLip(ctx, hs.x, hs.y, dispR, S.rt * .7, e * .6, 0);
+    }
+    S.drawn = list; S.prof = S.prof || {g: 0, q: 0, o: 0, n: 0, cnt: 0}; S.prof.g += T1 - T0; S.prof.q += T2 - T1; S.prof.o += T3 - T2; S.prof.n++; S.prof.cnt = list.length;
+    // popups
+    ctx.font = '800 ' + Math.round(18) + 'px "Helvetica Neue",Arial,sans-serif'; ctx.textAlign = 'center';
+    for (const p of S.pops) { const u = p.t / 1.0, e = 1 - (1 - u) * (1 - u), sz = p.s * (1 + .5 * Math.max(0, 1 - u * 6)); ctx.globalAlpha = Math.min(1, (1 - u) * 2.2); ctx.font = '800 ' + sz + 'px "Helvetica Neue",Arial,sans-serif'; ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = '#2a1c18'; const tw = ctx.measureText(p.text).width, px = clamp(p.x, tw / 2 + 10, W - tw / 2 - 10); ctx.strokeText(p.text, px, p.y - e * 56); ctx.fillStyle = p.c; ctx.fillText(p.text, px, p.y - e * 56); }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- events from the core -> effects
+  function onEvents(run) {
+    const ev = run.events; if (!ev.length) return;
+    const v = view(), hs = {x: wX(v, run.hole.x), y: wY(v, run.hole.y)}, dispR = S.cam.Rd * v.ppm;
+    for (const e of ev) {
+      if (e.type === 'swallow') {
+        S.squashV += .4 + Math.min(1.6, e.rel * 2.4); S.gulpV += 10 + Math.min(14, e.rel * 24); S.glow = Math.min(1, S.glow + .15);
+        if (e.rel > .5 && !reduce) S.freeze = Math.max(S.freeze, .04 + Math.min(.04, (e.rel - .5) * .1));
+        const o = e.o, ang = Math.atan2(wY(v, o.y) - hs.y, wX(v, o.x) - hs.x);
+        crumbs(Math.min(10, 3 + Math.round(e.rel * 10)), hs.x + Math.cos(ang) * dispR, hs.y + Math.sin(ang) * dispR, 0, '#fff6d8');
+        S.rings.push({t: 0, life: .42, k: 1.22 + e.rel * .5, w: 3 + e.rel * 8, c: e.rel > .35 ? '#ff7ec0' : '#fff6d8', a: .85});
+        if (S.mode === 'play') {
+          sfx.swallow(e.chain, e.rel, run.level); buzz(e.rel > .4 ? 14 : 6);
+          if (e.bonus >= .25) pop('+' + e.bonus.toFixed(1), hs.x + (Math.random() - .5) * dispR * 1.2, hs.y - dispR * 1.5, e.chain >= 8 ? '#ffd36b' : '#fff6d8', Math.round(clamp(18 + e.bonus * 10, 18, 30)), true);
+          if (e.chain >= 10 && e.chain % 10 === 0) pop('×' + e.chain, hs.x, hs.y + dispR * 1.9, '#ffd36b', 22);
+          if (e.rel > .55) S.shake = Math.max(S.shake, reduce ? 0 : .35);
+        }
+        endHint();
+      } else if (e.type === 'unlock') {
+        for (let i = 0; i < e.list.length; i++) { const q = e.list[i]; S.newly.set(q.id, S.rt + Math.hypot(q.x - run.hole.x, q.y - run.hole.y) / run.hole.R * .03); }
+        if (S.mode === 'play' && S.rt - S.lastUnlock > .18) { S.lastUnlock = S.rt; sfx.unlock(Math.min(e.list.length, 6), run.level); }
+      } else if (e.type === 'level') {
+        S.flash = 1; S.glow = 1; S.shake = reduce ? 0 : .8; S.kick = 1; S.kickK = e.chapterChanged ? 2.1 : 1; if (!reduce) S.freeze = Math.max(S.freeze, e.chapterChanged ? .16 : .1); S.clockPop = 1; ui.plate.classList.remove('flash'); void ui.plate.offsetWidth; ui.plate.classList.add('flash');
+        S.rings.push({t: 0, life: .8, k: 4.4, w: 9, c: '#ff4fa3', a: .75});
+        crumbs(26, hs.x, hs.y, dispR, '#ff9ed0'); crumbs(18, hs.x, hs.y, dispR, '#8b5cff');
+        sfx.level(e.level, e.chapterChanged); buzz(e.chapterChanged ? [30, 40, 30] : 24);
+        if (!e.chapterChanged && S.mode === 'play') showSlab(e.level);
+        { const tr = $('timer').getBoundingClientRect(); pop('+' + Math.round(e.bonus * 10) / 10 + 's', Math.min(tr.left + tr.width / 2, W - 44), tr.bottom + 26, '#ff4fa3', 28); ui.timer.classList.remove('gain'); void ui.timer.offsetWidth; ui.timer.classList.add('gain'); }
+        if (e.chapterChanged && S.mode === 'play') showChapter(e.chapter);
+        humSet(e.level, .05);
+      } else if (e.type === 'bonk') {
+        S.wob.set(e.o.id, S.rt); S.squashV -= .25; sfx.bonk(run.level);
+      } else if (e.type === 'end') {
+        beginClose();
+      }
+    }
+    ev.length = 0;
+  }
+  let cardTimer = 0, slabTimer = 0;
+  function showSlab(level) {                             // what the new size is the size of
+    const st = VOID.sizeText(level), el = $('slab');
+    $('slabtext').textContent = 'as wide as ' + VOID.likeText(st.m);
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+    clearTimeout(slabTimer); slabTimer = setTimeout(() => el.classList.remove('on'), 1500);
+  }
+  function showChapter(c) {
+    const ch = VOID.CHAPTERS[c]; if (!ch) return;
+    $('cardname').textContent = ch.name; $('cardsub').textContent = 'as wide as ' + VOID.likeText(VOID.sizeText(ch.from).m);
+    ui.card.classList.remove('on'); void ui.card.offsetWidth; ui.card.classList.add('on');
+    clearTimeout(cardTimer); cardTimer = setTimeout(() => ui.card.classList.remove('on'), 2600);
+  }
+  function beginClose() {
+    if (S.mode !== 'play') return;
+    S.mode = 'closing'; S.closeT = -.45; S.gulpV = -34; S.squashV -= 1.4; document.body.dataset.mode = 'closing'; $('cardname').textContent = 'Time'; $('cardsub').textContent = 'as wide as ' + VOID.likeText(VOID.sizeText(Math.max(0, VOID.levelOfR(S.run.hole.R))).m); ui.card.classList.remove('on'); void ui.card.offsetWidth; ui.card.classList.add('on'); sfx.end(); buzz([40, 30, 80]); humSet(0, 0);
+    endPtr(); S.input.active = false;
+  }
+  function showResult() {
+    const run = S.run, L = Math.max(0, VOID.levelOfR(run.hole.R)), st = VOID.sizeText(L);
+    save.eaten += run.count;
+    S.newBest = L > save.best + .0001; if (S.newBest) { save.best = L; save.bestName = run.biggest ? run.biggest.name : ''; }
+    if (streetIsDaily) save.days[today] = Math.max(save.days[today] || 0, L);
+    store();
+    const ch = VOID.CHAPTERS[VOID.chapterOfLevel(L)];
+    $('rchapter').textContent = ch.name;
+    const rw = clamp(Math.min(W, H) * .13, 46, 64);
+    const paint = t => { const x = VOID.sizeText(Math.max(0, L * t)); $('rsize').innerHTML = '<span class="big">' + [...x.digits].map(c => numeralSVG(c, rw, INK)).join('') + '</span><span class="u">' + x.unit + '</span>'; };
+    if (reduce) paint(1); else { const t0 = performance.now(); (function step() { const u = clamp((performance.now() - t0) / 1100, 0, 1); paint(1 - Math.pow(1 - u, 3)); if (u < 1) requestAnimationFrame(step); })(); }
+    $('rlike').textContent = 'about as wide as ' + VOID.likeText(st.m);
+    const bite = run.biggest ? run.biggest.name : 'nothing';
+    $('rstats').innerHTML = '<div><b>' + run.count + '</b><span>swallowed</span></div><div><b>' + bite + '</b><span>biggest bite</span></div><div><b>×' + run.bestChain + '</b><span>best chain</span></div>';
+    $('rbest').classList.toggle('on', S.newBest);
+    const bt = save.best > 0 ? VOID.sizeText(save.best) : null;
+    $('rbestline').textContent = S.newBest ? 'New best' : (bt ? 'Best Ø ' + bt.digits + ' ' + bt.unit : '');
+    setMode('result');
+  }
+
+  // ---- the loop
+  let last = 0;
+  function frame(ts) {
+    requestAnimationFrame(frame);
+    const dt = clamp((ts - last) / 1000, 0, .05); last = ts;
+    if (S.manual) return;                                   // tests step the world by hand
+    tick(dt, ts);
+  }
+  function tick(dt, ts) {
+    ts = ts === undefined ? S.rt * 1000 : ts;
+    S.rt += dt;
+    const run = S.run; if (!run) { return; }
+    if (S.hold > 0) S.hold -= dt;
+    if (S.iris > 0 && S.mode !== 'closing' && S.mode !== 'result') S.iris = Math.max(0, S.iris - dt / .4);
+    if (S.freeze > 0) S.freeze -= dt;
+    if (S.mode === 'play' && (S.hold > 0 || S.freeze > 0)) { /* the street opens, or a big bite lands: nothing runs for a beat */ }
+    else if (S.mode === 'play') {
+      const iv = inputVec();
+      if (iv.x || iv.y) { inp.moved = true; if (S.run.t < 12) endHintSoon(); }
+      VOID.step(run, dt, iv);
+      onEvents(run);
+      if (run.timeLeft < 10 && run.timeLeft > 0) { const sec = Math.ceil(run.timeLeft); if (sec !== S.lastTick) { S.lastTick = sec; sfx.tick(); } }
+      humSet(run.level, .045);
+    } else if (S.mode === 'title') {
+      /* the hole waits, and is the button */
+    } else if (S.mode === 'closing') {
+      S.closeT += dt / (S.closeT < 0 ? 1 : 1.0); VOID.step(run, 0, null);
+      if (S.closeT >= 1) showResult();
+    } else if (S.mode === 'pause' || S.mode === 'result') { /* world holds still */ }
+    // camera: look ahead of the motion, spring after the hole; zoom eases out as the hole grows
+    const H0 = run.hole, cam = S.cam, k = 1 - Math.exp(-dt * 7), tx = H0.x + H0.vx * .3, ty = H0.y + H0.vy * .3;
+    const ox = cam.x, oy = cam.y; cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
+    S.kick = Math.max(0, S.kick - dt / (S.kickK > 1.5 ? 1.7 : 1.15));
+    const ks = S.kick * S.kick * (3 - 2 * S.kick), camTarget = cam.Rd * (1 + (reduce ? 0 : .3) * S.kickK * ks);
+    cam.Rd += (H0.R - cam.Rd) * (1 - Math.exp(-dt * (reduce ? 6 : 10))); cam.R += (camTarget - cam.R) * (1 - Math.exp(-dt * (reduce ? 4 : 3.2)));
+    S.gulpV += (-S.gulp * 260 - S.gulpV * 17) * dt; S.gulp += S.gulpV * dt; S.gulp = clamp(S.gulp, -.3, 1.2);
+    if (S.run) { const d = S.run.timeLeft - S.clockShown; S.clockShown = Math.abs(d) < .02 ? S.run.timeLeft : S.clockShown + d * (1 - Math.exp(-dt * (d > 0 ? 7 : 40))); }
+    S.pan.x += (cam.x - ox) * P / cam.R; S.pan.y += (cam.y - oy) * P / cam.R;
+    // where the hole sits on the screen: low in play (the thumb is below, the eyes look ahead), up and aside for the result card
+    const portrait = H > W, endView = S.mode === 'result' || (S.mode === 'closing' && S.closeT > .35);
+    hxT = endView && !portrait ? W * .3 : hx0; hyT = endView ? (portrait ? H * .27 : H * .5) : hy0;
+    const ke = 1 - Math.exp(-dt * (endView ? 4 : 8)); hx += (hxT - hx) * ke; hy += (hyT - hy) * ke;
+    // springs
+    S.squashV += (-S.squash * 160 - S.squashV * 14) * dt; S.squash += S.squashV * dt; S.squash = clamp(S.squash, -.14, .2);
+    S.glow = Math.max(0, S.glow - dt * 1.4); S.flash = Math.max(0, S.flash - dt * 1.1); S.shake = Math.max(0, S.shake - dt * 2.6);
+    for (const p of S.parts) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 180 * dt; } S.parts = S.parts.filter(p => p.t < p.life);
+    for (const r of S.rings) r.t += dt; S.rings = S.rings.filter(r => r.t < r.life);
+    for (const p of S.pops) p.t += dt; S.pops = S.pops.filter(p => p.t < 1.0);
+    if (S.mode === 'play' || S.mode === 'closing') { if (ts - S.lastOdo > 190) { S.lastOdo = ts; if (S.run) updateHud(false); } }
+    if (S.mode === 'title') { const ph = $('playhole'), r = S.cam.Rd * P / S.cam.R; ph.style.left = hx + 'px'; ph.style.top = hy + 'px'; const sz = Math.max(96, r * 2.4); ph.style.width = ph.style.height = sz + 'px'; ph.style.margin = (-sz / 2) + 'px 0 0 ' + (-sz / 2) + 'px'; }
+    draw(dt);
+  }
+  function endHintSoon() { if (S.run && S.run.count > 0) endHint(); else if (inp.moved && S.run.t > 3.5) endHint(); }
+
+  // ---- buttons
+  $('playhole').addEventListener('click', e => { e.stopPropagation(); startRun(false); });
+  $('again').addEventListener('click', () => startRun(false));
+  $('newstreet').addEventListener('click', () => startRun(true));
+  $('resume').addEventListener('click', () => pause(false));
+  $('quit').addEventListener('click', () => { toTitle(); });
+  $('timer').addEventListener('click', e => { e.stopPropagation(); if (S.mode === 'play') pause(true); });
+  document.querySelectorAll('.snd').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); audioInit(); setMute(sound.on); }));
+  $('copy').addEventListener('click', () => {
+    const url = location.origin + location.pathname + '?seed=' + streetSeed, run = S.run, st = VOID.sizeText(Math.max(0, VOID.levelOfR(run.hole.R)));
+    const text = 'VOID — I swallowed my way up to Ø ' + st.digits + ' ' + st.unit + ' (' + VOID.CHAPTERS[VOID.chapterOfLevel(VOID.levelOfR(run.hole.R))].name + '). Same street: ' + url;
+    const done = () => { $('copy').classList.add('done'); setTimeout(() => $('copy').classList.remove('done'), 1400); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done); else done();
+  });
+  addEventListener('resize', resize);
+
+  // ---- go
+  document.body.classList.toggle('muted', save.mute);
+  word($('wordmark'), 'VOID', Math.round(clamp(Math.min(innerWidth, innerHeight) * .15, 46, 84)));
+  resize();
+  S.run = VOID.newRun(streetSeed); S.cam.x = S.run.hole.x; S.cam.y = S.run.hole.y;
+  setMode('title'); updateTitle();
+  requestAnimationFrame(t => { last = t; frame(t); });
+})();
+
+</script>
+</body>
+</html>
