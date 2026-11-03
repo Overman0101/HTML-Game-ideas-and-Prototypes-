@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shooting range</title>
+
+<!-- =====================================================================
+     PART 1 - HTML + CSS
+     The 3D view is ONE <canvas>. Everything else (score, ammo, crosshair,
+     scope, popups) is plain HTML/CSS laid on top of it. That's the usual
+     split in browser games: canvas for the world, DOM for the interface.
+     ===================================================================== -->
+<style>
+  :root {
+    --ink: #14171a;
+    --panel: #e8ecef;
+    --orange: #ff5a1f;   /* bullseye orange */
+    --yellow: #f2c230;   /* firing-line yellow */
+    --glass: rgba(20, 23, 26, .74);
+    --font: "Bahnschrift", "DIN Alternate", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; background: #0c0e10; color: var(--panel); font-family: var(--font); overflow: hidden; }
+  #stage { width: 100vw; height: 100vh; display: grid; place-items: center; }
+
+  /* The frame keeps a 16:9 shape. JS sets --u to 1% of its width, so every
+     size below is written as calc(var(--u) * N) and scales with the window. */
+  #frame { position: relative; aspect-ratio: 16 / 9; width: min(100vw, calc(100vh * 16 / 9)); user-select: none; }
+
+  /* The canvas is only 640x360 internally. CSS stretches it, and
+     "pixelated" keeps it crisp and retro instead of blurry. */
+  canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; background: #000; }
+
+  #hud { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+  /* Score */
+  #scoreboard { position: absolute; top: calc(var(--u) * 1.6); left: calc(var(--u) * 1.6);
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.6); background: var(--glass);
+    border-left: calc(var(--u) * .4) solid var(--orange); }
+  #scoreVal { font-size: calc(var(--u) * 5.4); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  #scoreboard .sub { display: flex; gap: calc(var(--u) * 1.8); margin-top: calc(var(--u) * .5);
+    font-size: calc(var(--u) * 1.5); color: #aab4bb; font-variant-numeric: tabular-nums; }
+
+  /* Ammo */
+  #ammo { position: absolute; right: calc(var(--u) * 1.6); bottom: calc(var(--u) * 1.6); text-align: right;
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.6); background: var(--glass); border-right: calc(var(--u) * .4) solid var(--yellow); }
+  #gunName { font-size: calc(var(--u) * 1.7); color: #aab4bb; }
+  #ammo .count b { font-size: calc(var(--u) * 5); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  #ammo .count span { font-size: calc(var(--u) * 2); color: #aab4bb; margin-left: calc(var(--u) * .4); }
+  #ammoNote { height: calc(var(--u) * 2); font-size: calc(var(--u) * 1.5); color: var(--orange); }
+
+  /* Weapon slots (the number is the key that selects it) */
+  #slots { position: absolute; left: 50%; bottom: calc(var(--u) * 1.6); transform: translateX(-50%); display: flex; gap: calc(var(--u) * .5); }
+  .slot { padding: calc(var(--u) * .5) calc(var(--u) * .8); background: var(--glass); font-size: calc(var(--u) * 1.35);
+    display: flex; gap: calc(var(--u) * .8); align-items: baseline; border-bottom: calc(var(--u) * .35) solid transparent; color: #aab4bb; }
+  .slot kbd { font: inherit; font-weight: 800; color: var(--yellow); }
+  .slot.locked { opacity: .3; }
+  .slot.on { border-bottom-color: var(--orange); color: #fff; background: rgba(20, 23, 26, .92); }
+
+  /* Crosshair: four ticks. JS changes --gap every frame so the cross
+     opens up as your aim gets less accurate. */
+  #cross { position: absolute; left: 50%; top: 50%; width: 0; height: 0; --gap: 6px; }
+  #cross i { position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .55); }
+  #cross .t { width: 2px; height: 9px; left: -1px; top: calc(var(--gap) * -1 - 9px); }
+  #cross .b { width: 2px; height: 9px; left: -1px; top: var(--gap); }
+  #cross .l { height: 2px; width: 9px; top: -1px; left: calc(var(--gap) * -1 - 9px); }
+  #cross .r { height: 2px; width: 9px; top: -1px; left: var(--gap); }
+
+  /* Hit marker: a small X that flashes when you hit something */
+  #hitmark { position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6);
+    transform: translate(-50%, -50%) rotate(45deg); opacity: 0; }
+  #hitmark::before, #hitmark::after { content: ""; position: absolute; background: #fff; }
+  #hitmark::before { left: 50%; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; }
+  #hitmark::after  { top: 50%; left: 0; right: 0; height: 3px; margin-top: -1.5px; }
+  #hitmark.on { animation: hit .28s ease-out; }
+  #hitmark.bull::before, #hitmark.bull::after { background: var(--orange); }
+  @keyframes hit { 0% { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(1.5); } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(.9); } }
+
+  /* Miss marker: a small gray ring where the bullet went */
+  #missmark { position: absolute; width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6); border: 2px solid #c3ccd2;
+    border-radius: 50%; opacity: 0; transform: translate(-50%, -50%); }
+  #missmark.on { animation: miss .3s ease-out; }
+  @keyframes miss { 0% { opacity: .9; transform: translate(-50%, -50%) scale(.5); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.7); } }
+
+  /* Rangefinder: distance to whatever is under the crosshair. Gray = beyond this weapon's effective range. */
+  #range { position: absolute; left: 50%; top: 50%; transform: translateX(-50%); margin-top: calc(var(--u) * 3.4);
+    font-size: calc(var(--u) * 1.7); font-weight: 800; color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, .8); font-variant-numeric: tabular-nums; }
+  #range.far { color: #8b949b; }
+
+  /* Score popups that float up from the target */
+  .pop { position: absolute; transform: translate(-50%, -50%); font-weight: 800; white-space: nowrap;
+    font-size: calc(var(--u) * 2.6); text-shadow: 0 2px 0 rgba(0, 0, 0, .7); animation: rise .9s ease-out forwards; }
+  .pop.bull { color: var(--orange); } .pop.mid { color: #fff; } .pop.out { color: #c3ccd2; } .pop.bad { color: #ff5a5a; }
+  @keyframes rise { 0% { opacity: 0; margin-top: 0; } 15% { opacity: 1; } 100% { opacity: 0; margin-top: calc(var(--u) * -6); } }
+
+  /* Sniper scope: a big black mask with a round hole (radial-gradient) and two hairlines */
+  #scope { position: absolute; inset: 0; display: none;
+    background: radial-gradient(circle at 50% 50%, transparent calc(var(--u) * 25), #000 calc(var(--u) * 25.6)); }
+  #scope::before, #scope::after { content: ""; position: absolute; background: rgba(0, 0, 0, .85); }
+  #scope::before { left: 50%; top: calc(50% - var(--u) * 25); height: calc(var(--u) * 50); width: 1px; }
+  #scope::after  { top: 50%; left: calc(50% - var(--u) * 25); width: calc(var(--u) * 50); height: 1px; }
+
+  /* Mode menu */
+  #menu { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8, 10, 12, .84); }
+  #menu.hidden { display: none; }
+  .menuCard { width: calc(var(--u) * 86); padding: calc(var(--u) * 2.4); background: var(--panel); color: var(--ink); border-top: calc(var(--u) * .8) solid var(--orange); }
+  .menuCard h1 { font-size: calc(var(--u) * 4.4); line-height: 1; font-weight: 800; }
+  .menuGrid { display: grid; grid-template-columns: calc(var(--u) * 34) 1fr; gap: calc(var(--u) * 2.4); margin-top: calc(var(--u) * 1.6); }
+  .modeList { display: flex; flex-direction: column; gap: calc(var(--u) * .6); }
+  .modeBtn { font: inherit; text-align: left; cursor: pointer; border: 0; border-left: calc(var(--u) * .5) solid transparent;
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.2); background: #d3d9de; color: var(--ink); display: grid; gap: calc(var(--u) * .2); }
+  .modeBtn b { font-size: calc(var(--u) * 1.9); }
+  .modeBtn span { font-size: calc(var(--u) * 1.3); color: #3d474e; }
+  .modeBtn:hover { background: #c3cbd1; }
+  .modeBtn[aria-pressed="true"] { background: var(--ink); color: #fff; border-left-color: var(--orange); }
+  .modeBtn[aria-pressed="true"] span { color: #aab4bb; }
+  .modeDetail h2 { font-size: calc(var(--u) * 3); line-height: 1.05; font-weight: 800; }
+  .modeDetail p { margin-top: calc(var(--u) * .7); font-size: calc(var(--u) * 1.7); color: #3d474e; min-height: calc(var(--u) * 5.2); }
+  .tags { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: calc(var(--u) * .5); margin-top: calc(var(--u) * .8); }
+  .tags li { font-size: calc(var(--u) * 1.3); font-weight: 800; padding: calc(var(--u) * .2) calc(var(--u) * .8); border: 2px solid var(--ink); }
+  .best { margin-top: calc(var(--u) * 1); font-size: calc(var(--u) * 1.5); font-variant-numeric: tabular-nums; }
+  .diffRow { display: flex; margin-top: calc(var(--u) * 1.2); }
+  .diffRow button { flex: 1; font: inherit; font-size: calc(var(--u) * 1.6); font-weight: 800; padding: calc(var(--u) * .6); cursor: pointer;
+    background: transparent; color: var(--ink); border: 2px solid var(--ink); margin-left: -2px; }
+  .diffRow button:first-child { margin-left: 0; }
+  .diffRow button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .opt { display: flex; align-items: center; gap: calc(var(--u) * .8); margin-top: calc(var(--u) * 1.1); font-size: calc(var(--u) * 1.5); cursor: pointer; }
+  .opt input { width: calc(var(--u) * 1.8); height: calc(var(--u) * 1.8); accent-color: var(--ink); }
+  #startBtn { margin-top: calc(var(--u) * 1.6); font: inherit; font-size: calc(var(--u) * 2.2); font-weight: 800; padding: calc(var(--u) * .9) calc(var(--u) * 3.4);
+    background: var(--orange); color: var(--ink); border: 0; cursor: pointer; }
+  #startBtn:hover { filter: brightness(1.08); }
+  .menuHint { margin-top: calc(var(--u) * .8); font-size: calc(var(--u) * 1.3); color: #3d474e; }
+  .menuCard button:focus-visible, .menuCard input:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  /* Start / pause card */
+  #overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8, 10, 12, .72); cursor: pointer; }
+  #overlay.hidden { display: none; }
+  .card { width: calc(var(--u) * 46); padding: calc(var(--u) * 2.4); background: var(--panel); color: var(--ink); border-top: calc(var(--u) * .8) solid var(--orange); }
+  .card h1 { font-size: calc(var(--u) * 5.6); line-height: 1; font-weight: 800; }
+  .card p.lede { margin: calc(var(--u) * 1) 0 calc(var(--u) * 2); font-size: calc(var(--u) * 1.9); color: #3d474e; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * .7) calc(var(--u) * 1.6); font-size: calc(var(--u) * 1.8); align-items: center; }
+  .keys kbd { font: inherit; font-weight: 800; background: var(--ink); color: #fff; padding: 0 calc(var(--u) * .8); justify-self: start; }
+  .card .go { margin-top: calc(var(--u) * 2.2); font-size: calc(var(--u) * 2.2); font-weight: 800; color: var(--orange); }
+  .card .note { margin-top: calc(var(--u) * 1); font-size: calc(var(--u) * 1.4); color: #3d474e; min-height: calc(var(--u) * 1.6); }
+  .card button { margin-top: calc(var(--u) * 1); margin-right: calc(var(--u) * .8); font: inherit; font-size: calc(var(--u) * 1.5); padding: calc(var(--u) * .5) calc(var(--u) * 1.2);
+    background: transparent; border: 2px solid var(--ink); color: var(--ink); cursor: pointer; }
+  .card button:hover, .card button:focus-visible { background: var(--ink); color: #fff; outline: none; }
+</style>
+</head>
+
+<body>
+<div id="stage">
+  <div id="frame">
+    <canvas id="view"></canvas>
+
+    <div id="hud">
+      <div id="scoreboard">
+        <div id="scoreVal">0</div>
+        <div class="sub"><span id="acc">Accuracy -</span><span id="streak">Streak 0</span><span id="best">Best streak 0</span></div>
+        <div class="sub"><span id="high">High score 0</span></div>
+        <div class="sub"><span id="modeTag"></span></div>
+      </div>
+      <div id="ammo">
+        <div id="gunName">Pistol</div>
+        <div class="count"><b id="mag">12</b><span id="magMax">/ 12</span></div>
+        <div id="ammoNote"></div>
+      </div>
+      <div id="slots"></div>
+      <div id="cross"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
+      <div id="hitmark"></div>
+      <div id="missmark"></div>
+      <div id="range"></div>
+      <div id="scope"></div>
+    </div>
+
+    <div id="menu">
+      <div class="menuCard">
+        <h1>Practice range</h1>
+        <div class="menuGrid">
+          <div class="modeList" id="modeList" role="group" aria-label="Mode"></div>
+          <div class="modeDetail">
+            <h2 id="mdName"></h2>
+            <p id="mdBlurb"></p>
+            <ul class="tags" id="mdTags"></ul>
+            <div class="best" id="mdBest"></div>
+            <div class="diffRow" id="diffRow" role="group" aria-label="Difficulty"></div>
+            <label class="opt"><input type="checkbox" id="optAll"> Start with all weapons unlocked</label>
+            <button id="startBtn" type="button">Start</button>
+            <div class="menuHint">Up and down or 1 to 5 picks a mode. Enter starts.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="overlay" class="hidden">
+      <div class="card">
+        <h1>Shooting range</h1>
+        <p class="lede">Far hits pay more, and the blue civilians cost you points, so hold your fire. Find the floating weapons behind the booths to unlock more guns.</p>
+        <div class="keys">
+          <kbd>W A S D</kbd><span>Walk around your booth</span>
+          <kbd>Mouse</kbd><span>Look (arrow keys work too)</span>
+          <kbd>Left click</kbd><span>Shoot (hold to keep firing)</span>
+          <kbd>Right click</kbd><span>Aim down sights (the sniper gets a scope)</span>
+          <kbd>1 to 6</kbd><span>Pick a weapon you've collected (wheel works too)</span>
+          <kbd>R</kbd><span>Reload</span>
+          <kbd>Esc</kbd><span>Pause</span>
+        </div>
+        <div class="go" id="goText">Click anywhere to start</div>
+        <div class="note" id="note"></div>
+        <button id="menuBtn" type="button">Change mode</button>
+        <button id="resetBtn" type="button">Reset game</button>
+        <button id="clearBtn" type="button">Clear saved records</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   PART 2 - THE GAME
+
+   HOW THIS KIND OF 3D WORKS ("raycasting", like Wolfenstein 3D)
+   -------------------------------------------------------------
+   The world is a flat 2D grid (a map seen from above). There is no real
+   3D geometry. To draw a frame we do this for every vertical column of
+   screen pixels:
+
+     1. Shoot an invisible ray from the player through that column.
+     2. Walk the ray across the grid until it hits a wall.
+     3. The farther the wall, the shorter we draw its vertical strip.
+
+   Draw 640 strips side by side and your brain sees a 3D corridor.
+   Floors and ceilings work the same way, row by row.
+
+   Targets are "sprites": flat pictures that we scale by distance and
+   draw column by column, hiding any column that's behind a wall.
+
+   Shooting is also done with math instead of physics: we check whether
+   the crosshair is inside a target's circle on screen. That's called
+   a hitscan weapon, since the bullet arrives instantly.
+   ===================================================================== */
+(() => {
+'use strict';
+
+/* ---------- 1. SETUP ---------- */
+
+const W = 640, H = 360;                  // internal resolution (small = fast + retro)
+const canvas = document.getElementById('view');
+canvas.width = W; canvas.height = H;
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;       // keep textures crisp when we stretch them
+
+const frame = document.getElementById('frame');
+
+// Floor and ceiling are painted pixel by pixel into this buffer, which is
+// much faster than 230,000 fillRect calls. A Uint32Array lets us write a
+// whole RGBA pixel as one number.
+const floorImg = ctx.createImageData(W, H);
+const floorBuf = new Uint32Array(floorImg.data.buffer);
+
+const BASE_PLANE = 0.66;   // camera "width". 0.66 gives a ~66 degree field of view
+const FOG_DIST   = 95;     // things fade into darkness at about this distance
+const zBuf = new Float32Array(W);  // distance to the wall in each column. Sprites use it to hide behind walls.
+
+/* ---------- 2. THE MAP: A REAL SHOOTING BAY ----------
+   The whole place is built from map cells, so you can walk around it like any shooter:
+
+        backstop wall ............................. (far end, ~80 m away)
+        open range floor  (targets hang here)
+        ===== counter (LOW wall: solid, but you can see and shoot over it) =====
+        | booth | booth | booth |      <- booths, split by full-height dividers
+        walkway (open, connects the booths, lets you walk behind them)
+        back wall
+
+   The counter blocks your way onto the range but not your view, because raycaster
+   cells normally are full height. Cell code 11 is drawn short instead (see drawWalls).
+   Cell codes: 0 floor, 1 concrete, 3 backstop, 4 to 10 distance signs "10 m" to "70 m",
+   11 low counter, 12 booth divider. */
+const MW = 22, MH = 90;
+const COUNTER_ROW = MH - 8;                      // the row of the counter. The range starts just north of it.
+const DIVIDER_X = [7, 14];                       // splits the bay into 3 booths: x 1-6, 8-13, 15-20
+const LOW = 11, DIVIDER = 12;
+const STATION = { x: 11, y: MH - 6.3 };          // where you start: in the middle booth, just behind the counter
+const FACING = -Math.PI / 2;                     // facing up the range
+const MAP = new Uint8Array(MW * MH);
+for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+  let cell = 0;
+  if (y === 0) cell = 3;                                              // backstop at the far end
+  else if (y === MH - 1 || x === 0 || x === MW - 1) cell = 1;         // the other outer walls
+  else if (y === COUNTER_ROW) cell = DIVIDER_X.includes(x) ? DIVIDER : LOW;   // the counter, all the way across
+  else if (y > COUNTER_ROW && y <= MH - 4 && DIVIDER_X.includes(x)) cell = DIVIDER;   // dividers run back 4 rows, so the walkway behind stays open
+  MAP[y * MW + x] = cell;
+}
+for (let k = 1; k <= 7; k++) {                                        // a sign on both side walls every 10 m down the range
+  const row = Math.floor(COUNTER_ROW - k * 10);
+  MAP[row * MW] = 3 + k; MAP[row * MW + MW - 1] = 3 + k;
+}
+const isWall = (x, y) => MAP[Math.floor(y) * MW + Math.floor(x)] > 0;   // anything solid blocks walking (counter included)
+
+/* ---------- 3. TEXTURES ----------
+   We draw them with canvas commands at startup, so the game needs no image files. */
+const TEX = 64;
+function makeTexture(paint) {
+  const c = document.createElement('canvas'); c.width = c.height = TEX;
+  paint(c.getContext('2d')); return c;
+}
+const textures = [
+  null,
+  // 1: concrete blocks
+  makeTexture(c => {
+    c.fillStyle = '#8a8f94'; c.fillRect(0, 0, TEX, TEX);
+    c.fillStyle = '#5e6367';
+    for (let row = 0; row < 4; row++) {                 // 4 rows of blocks, each row shifted half a block
+      c.fillRect(0, row * 16, TEX, 1);
+      for (let bx = -(row % 2) * 16; bx < TEX; bx += 32) c.fillRect(bx, row * 16, 1, 16);
+    }
+    for (let i = 0; i < 260; i++) {                     // random speckles so it isn't flat
+      c.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.10)';
+      c.fillRect(Math.random() * TEX | 0, Math.random() * TEX | 0, 1 + (Math.random() * 2 | 0), 1);
+    }
+  }),
+  // 2: yellow/black hazard pillar (diagonal stripes)
+  makeTexture(c => {
+    for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) {
+      c.fillStyle = ((x + y) >> 3) & 1 ? '#f2c230' : '#1b1d1f';
+      c.fillRect(x, y, 1, 1);
+    }
+  }),
+  // 3: rubber backstop wall at the end of the range, with an orange stripe
+  makeTexture(c => {
+    c.fillStyle = '#343b38'; c.fillRect(0, 0, TEX, TEX);
+    c.fillStyle = '#272d2b';
+    for (let x = 0; x < TEX; x += 16) c.fillRect(x, 0, 2, TEX);
+    c.fillStyle = '#ff5a1f'; c.fillRect(0, 28, TEX, 5);
+    for (let i = 0; i < 200; i++) { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(Math.random() * TEX | 0, Math.random() * TEX | 0, 2, 1); }
+  }),
+];
+
+// Distance signs for the side walls (cell codes 4 to 10)
+for (let k = 1; k <= 7; k++) textures.push(makeTexture(c => {
+  c.fillStyle = '#2f353a'; c.fillRect(0, 0, TEX, TEX);
+  c.fillStyle = '#ff5a1f'; c.fillRect(0, 0, TEX, 7); c.fillRect(0, TEX - 7, TEX, 7);
+  c.fillStyle = '#eef1f3'; c.font = 'bold 26px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(String(k * 10), TEX / 2, 27);
+  c.font = 'bold 13px sans-serif'; c.fillText('m', TEX / 2, 47);
+}));
+
+// Cell 11: the low counter. The light band on top reads as the bench surface edge.
+textures.push(makeTexture(c => {
+  c.fillStyle = '#2c3238'; c.fillRect(0, 0, TEX, TEX);
+  c.fillStyle = '#7b858c'; c.fillRect(0, 0, TEX, 12);
+  c.fillStyle = '#ff5a1f'; c.fillRect(0, 12, TEX, 3);
+  c.fillStyle = '#3a424a'; for (let x = 8; x < TEX; x += 16) c.fillRect(x, 20, 2, 40);
+}));
+// Cell 12: booth divider panel
+textures.push(makeTexture(c => {
+  c.fillStyle = '#242b30'; c.fillRect(0, 0, TEX, TEX);
+  c.fillStyle = '#323b42'; for (let y = 6; y < TEX; y += 16) c.fillRect(0, y, TEX, 2);
+  c.fillStyle = '#ff5a1f'; c.fillRect(0, 0, TEX, 5); c.fillRect(0, TEX - 5, TEX, 5);
+}));
+
+// Person-shaped targets (64x128). The proportions match the hit zones in hitZone():
+// head on top, then chest, then lower body and legs. Zone lines are painted on so you can see them.
+const MT_W = 64, MT_H = 128;
+function makePersonTex(fill, line) {
+  const c = document.createElement('canvas'); c.width = MT_W; c.height = MT_H;
+  const g = c.getContext('2d');
+  g.fillStyle = fill;
+  g.beginPath(); g.ellipse(32, 14.1, 18.5, 14, 0, 0, Math.PI * 2); g.fill();   // head
+  g.fillRect(0, 28, 64, 46);                                                    // shoulders and torso
+  g.fillRect(15, 74, 34, 54);                                                   // legs
+  g.strokeStyle = line; g.lineWidth = 2;
+  g.beginPath(); g.ellipse(32, 14.1, 11, 8.5, 0, 0, Math.PI * 2); g.stroke();  // head zone
+  g.beginPath(); g.moveTo(3, 51); g.lineTo(61, 51); g.stroke();                // chest / body line
+  g.beginPath(); g.moveTo(16, 74); g.lineTo(48, 74); g.stroke();               // torso / legs line
+  return c;
+}
+const manTex = makePersonTex('#2b3035', '#ff5a1f');        // hostile: dark with orange zones
+const civTex = makePersonTex('#7fb2dc', '#ffffff');        // civilian: light blue. Do not shoot.
+
+// The paper target picture (64x64). The rings match the scoring zones:
+// orange disc = inside 50% of the radius, black dot = inside 20%.
+const TT = 64;
+const targetTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = TT;
+  const g = c.getContext('2d'), m = TT / 2, R = m - 1;
+  const disc = (r, fill, stroke) => { g.beginPath(); g.arc(m, m, r, 0, Math.PI * 2);
+    if (fill) { g.fillStyle = fill; g.fill(); } if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1.5; g.stroke(); } };
+  disc(R, '#eef1f3', '#14171a');          // paper
+  disc(R * .75, null, '#9aa3a9');         // thin guide ring
+  disc(R * .5, '#ff5a1f', '#14171a');     // inner zone
+  disc(R * .2, '#14171a');                // bullseye
+  return c;
+})();
+
+/* ---------- 4. PLAYER + CAMERA ----------
+   The camera is two vectors:
+     dir   = which way we're looking
+     plane = a line sticking out sideways. Its length sets the field of view.
+   The ray for screen column x is:  dir + plane * (a number from -1 to +1)  */
+const P = {
+  x: STATION.x, y: STATION.y,        // starts in the middle booth
+  angle: FACING,
+  pitch: 0,                  // looking up/down, stored as a slope (tan of the angle)
+  recoil: 0,                 // temporary upward kick after firing
+  moveAmt: 0,                // 0..1, how much we're walking. Drives weapon bob and aim penalty.
+  dirX: 0, dirY: 0, planeX: 0, planeY: 0,
+};
+const V = { zoom: 1, flash: 0, kick: 0 };   // view effects: zoom level, muzzle flash, gun kick animation
+
+function updateCamera() {
+  const c = Math.cos(P.angle), s = Math.sin(P.angle);
+  const planeLen = BASE_PLANE / V.zoom;      // zooming in = a shorter plane = a narrower field of view
+  P.dirX = c;  P.dirY = s;
+  P.planeX = -s * planeLen;  P.planeY = c * planeLen;   // plane is perpendicular to dir
+}
+// "scale" = how many pixels one world unit takes up at distance 1.
+// It's used for walls, floors AND sprites so everything stays in proportion.
+function viewParams() {
+  const scale = W * V.zoom / (2 * BASE_PLANE);
+  const horizon = H / 2 + (P.pitch + P.recoil) * scale;   // screen row where floor meets ceiling
+  return { scale, horizon };
+}
+
+/* ---------- 5. WEAPONS ----------
+   range     = the weapon's EFFECTIVE range in meters. Every weapon can hit anything it can
+               see, but past this distance shots start to scatter (see "falloff"). The
+               rangefinder under the crosshair turns gray once you're beyond it.
+   falloff   = extra scatter, in pixels, for every +100% of distance past the effective
+               range (halved or better when aiming). Pistol and SMG drift a little, the
+               shotgun a lot, the sniper not at all. Scoring is untouched: far hits still
+               pay more, they're just harder to land.
+   pellets   = bullets fired per trigger pull (the shotgun fires 8)
+   scoreMul  = multiplies points per hit (shotgun pellets are cheap)
+   spread    = how far (in pixels) a shot can stray from the crosshair
+   bloom     = extra spread added per shot, fading back at "recover" px/sec
+   recoil    = upward kick per shot
+   zoom      = magnification while aiming (right mouse button)
+   adsSpread = accuracy multiplier while aiming (lower = more accurate)
+   Every weapon fires while the button is held, at its own pace (its "delay"). */
+const WEAPONS = [
+  { name: 'Pistol',  range: 35,  falloff: 50, delay: .26, spread: 6,  bloom: 5, bloomMax: 16, recover: 40, recoil: .030, kickYaw: 0,    reload: 1.1, mag: 12, zoom: 1.3,  adsSpread: .35, sound: 'pistol' },
+  { name: 'Revolver',range: 45,  falloff: 35, delay: .55, spread: 4,  bloom: 7, bloomMax: 18, recover: 30, recoil: .055, kickYaw: 0,    reload: 2.4, mag: 6,  zoom: 1.35, adsSpread: .25, scoreMul: 1.2, sound: 'revolver' },
+  { name: 'SMG',     range: 28,  falloff: 45, delay: .07, spread: 10, bloom: 4, bloomMax: 44, recover: 70, recoil: .022, kickYaw: .004, reload: 1.7, mag: 30, zoom: 1.4,  adsSpread: .5,  sound: 'smg' },
+  { name: 'AK-47',   range: 55,  falloff: 40, delay: .1,  spread: 9,  bloom: 5, bloomMax: 50, recover: 55, recoil: .036, kickYaw: .006, reload: 2.1, mag: 30, zoom: 1.4,  adsSpread: .45, sound: 'ak' },
+  { name: 'Shotgun', range: 16,  falloff: 70, delay: .8,  spread: 34, bloom: 0, bloomMax: 34, recover: 0,  recoil: .06,  kickYaw: 0,    reload: 2.2, mag: 6,  zoom: 1.2,  adsSpread: .65, pellets: 8, scoreMul: .35, sound: 'shotgun' },
+  { name: 'Sniper',  range: 100, falloff: 0,  delay: .95, spread: 46, bloom: 0, bloomMax: 46, recover: 0,  recoil: .070, kickYaw: 0,    reload: 2.4, mag: 5,  zoom: 5,    adsSpread: 0,   sound: 'sniper' },
+];
+WEAPONS.forEach(w => w.ammo = w.mag);
+// You start with only the pistol. The rest are unlocked by walking into their floating pickups.
+WEAPONS.forEach((w, i) => w.owned = i === 0);
+
+const START_WEAPON = 0;           // the pistol
+const SWITCH_TIME = .25;
+const FIRE_BUFFER = .35;          // a click is remembered this long if the gun isn't ready yet
+const state = { weapon: START_WEAPON, switching: 0, reloading: 0, nextShot: 0, bloom: 0, aiming: false };
+const cur = () => WEAPONS[state.weapon];
+
+/* ---------- 6. TARGETS AND MODES ----------
+   Three kinds of target:
+     disc - the round bullseye, hanging from the ceiling. Zones: bullseye, inner, outer.
+     man  - a man-sized silhouette standing on the floor. Zones: head, chest, body.
+     civ  - a person-shaped civilian (light blue). Don't shoot: it costs points and ends your streak.
+   Behaviors, mixed freely ("d" = meters beyond the counter):
+     static   - just stands there
+     speed    - glides left and right
+     up/down  - popup: visible for [min, max] seconds, hidden for [min, max] seconds, then returns somewhere new
+     approach - walks toward you from a random start inside "from" and drops when it gets within "stopAt"
+                meters of the counter. If it gets that close you lose your streak.
+   Each practice MODE below is just a list of targets, so one mode never mixes with another.
+   The menu picks a mode and a difficulty, and loadMode() builds the targets from them. */
+const CIV_PENALTY = 200;        // points lost for hitting a civilian (0 = no points lost, but your streak still ends)
+const LANE_MIN_X = 2.5, LANE_MAX_X = MW - 2.5;
+
+const MODES = [
+  { id: 'bullseye', name: 'Bullseye range', tags: ['Round targets', 'Static', 'Sliding', 'Popup'],
+    blurb: 'The classic warm-up. Round targets that stand still, slide, or pop up, from 8 to 72 m.',
+    layout: [
+      { d: 8 }, { d: 12, speed: 2.5 }, { d: 16, up: [2.5, 4], down: [1, 2.5] },
+      { d: 24, speed: 3.5 }, { d: 34, up: [2.5, 4], down: [1, 3] }, { d: 38 },
+      { d: 45, up: [3, 5], down: [1, 3], speed: 3 }, { d: 50 }, { d: 60, speed: 4 }, { d: 72, up: [3, 5], down: [1.5, 3.5] },
+    ] },
+  { id: 'silhouette', name: 'Silhouettes', tags: ['Man-sized', 'Head, chest, body', 'Popup'],
+    blurb: 'Man-sized targets. A head shot pays double a chest shot. They stand, slide, and pop up.',
+    layout: [
+      { d: 10, kind: 'man' }, { d: 14, kind: 'man', up: [2, 3.5], down: [1, 2.5] }, { d: 18, kind: 'man', speed: 2.5 },
+      { d: 24, kind: 'man', up: [2.5, 4], down: [1, 2.5], speed: 2 }, { d: 30, kind: 'man' }, { d: 38, kind: 'man', speed: 3 },
+      { d: 45, kind: 'man', up: [3, 5], down: [1, 3] }, { d: 55, kind: 'man' },
+    ] },
+  { id: 'rush', name: 'Rush', tags: ['Walkers', 'Stop them'],
+    blurb: 'Men walk toward the counter from far away. Drop them before they reach you, or your streak ends.',
+    layout: [
+      { d: 30, kind: 'man', speed: 1.2, approach: { speed: 3,   from: [28, 38], stopAt: 6 }, down: [.5, 1.5] },
+      { d: 30, kind: 'man', speed: 1.5, approach: { speed: 3.8, from: [34, 45], stopAt: 6 }, down: [1, 2.5] },
+      { d: 30, kind: 'man', speed: 0,   approach: { speed: 2.6, from: [32, 42], stopAt: 6 }, down: [1.5, 3] },
+      { d: 30, kind: 'man', speed: 2,   approach: { speed: 4.5, from: [40, 50], stopAt: 6 }, down: [2, 4] },
+      { d: 30, kind: 'man', speed: 1,   approach: { speed: 3.2, from: [38, 48], stopAt: 6 }, down: [.8, 2] },
+    ] },
+  { id: 'civilians', name: 'Hold your fire', tags: ['Shoot or don\u2019t', 'Civilians', 'Popup'],
+    blurb: 'Hostile men and blue civilians pop up in the same lane. Hit the hostile ones and spare the civilians.',
+    layout: [
+      { d: 12, kind: 'man', up: [2, 3], down: [.6, 1.6] }, { d: 15, kind: 'civ', up: [2.2, 3.2], down: [.6, 1.6] },
+      { d: 18, kind: 'man', up: [2, 3], down: [.6, 1.6], speed: 1.5 }, { d: 21, kind: 'civ', up: [2.2, 3.2], down: [.6, 1.6], speed: 1.2 },
+      { d: 25, kind: 'man', up: [2, 3], down: [.6, 1.6] }, { d: 28, kind: 'civ', up: [2.2, 3.2], down: [.6, 1.6] },
+      { d: 33, kind: 'man', up: [2.4, 3.4], down: [.6, 1.6] }, { d: 20, kind: 'man', speed: 2 },
+    ] },
+  { id: 'longrange', name: 'Long range', tags: ['45 to 80 m', 'Sniper country'],
+    blurb: 'Everything is far away: plates and men from 45 to 80 m, some moving. Bring the sniper.',
+    layout: [
+      { d: 45, up: [3, 5], down: [1, 3], speed: 3 }, { d: 50 }, { d: 55, kind: 'man' }, { d: 60, speed: 4 },
+      { d: 65, kind: 'man', up: [3, 5], down: [1.5, 3] }, { d: 72, up: [3, 5], down: [1.5, 3.5] },
+      { d: 78, kind: 'man', speed: 3 }, { d: 80 },
+    ] },
+];
+// Difficulty scales how fast things move, how long popups stay up, how long they stay hidden, and how big targets are.
+const DIFFS = [
+  { id: 'easy',   name: 'Easy',   speed: .7,  up: 1.4, down: .8,  size: 1.2 },
+  { id: 'normal', name: 'Normal', speed: 1,   up: 1,   down: 1,   size: 1 },
+  { id: 'hard',   name: 'Hard',   speed: 1.4, up: .7,  down: 1.2, size: .85 },
+];
+let active = null, startAll = false;       // active = { mode, diff } for the round in progress
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const between = ([a, b]) => rand(a, b);
+const FLIP_TIME = .22;
+
+function makeTarget(cfg, diff) {
+  const k = (range, f) => range && range.map(v => v * f);
+  const t = { kind: 'disc', ...cfg, y: COUNTER_ROW - cfg.d, x: 0, z: .5, dir: 1, mode: 'up', anim: 0, wait: 0, flip: 1, timer: 0 };
+  t.speed = (cfg.speed || 0) * diff.speed;
+  t.up = k(cfg.up, diff.up); t.down = k(cfg.down, diff.down);
+  if (cfg.approach) t.approach = { ...cfg.approach, speed: cfg.approach.speed * diff.speed };
+  if (t.kind === 'disc') t.r = (.45 + cfg.d * .016) * diff.size;                            // radius
+  else { const h = t.approach ? .75 : .6 + cfg.d * .007; t.h = Math.min(.95, h * diff.size); t.w = t.h * .38; }   // person: height and width
+  return t;
+}
+
+const targets = [];                        // filled by loadMode()
+
+// Put a target back to its starting state (used when a mode loads and on "Reset game").
+function resetTarget(t) {
+  t.x = rand(LANE_MIN_X, LANE_MAX_X); t.z = rand(.4, .65); t.dir = Math.random() < .5 ? -1 : 1; t.anim = 0;
+  if (t.approach) t.y = COUNTER_ROW - between(t.approach.from);
+  if (t.up || t.approach) { t.mode = 'down'; t.flip = 0; t.wait = rand(.3, 2.5); }   // popups and walkers start hidden, staggered
+  else                    { t.mode = 'up';   t.flip = 1; t.wait = 0; }
+}
+
+// Swap in a whole new set of targets and start a fresh round.
+function loadMode(mode, diff, all) {
+  active = { mode, diff }; startAll = all;
+  targets.length = 0;                                    // the array object stays the same, so everything holding it keeps working
+  for (const cfg of mode.layout) targets.push(makeTarget(cfg, diff));
+  selectRecords(mode.id + ':' + diff.id);                // each mode and difficulty keeps its own best scores
+  resetGame();
+}
+
+function updateTargets(dt) {
+  for (const t of targets) {
+    if (t.speed && t.mode !== 'down') {                // slide and bounce off the lane limits
+      t.x += t.dir * t.speed * dt;
+      if (t.x < LANE_MIN_X) { t.x = LANE_MIN_X; t.dir = 1; }
+      if (t.x > LANE_MAX_X) { t.x = LANE_MAX_X; t.dir = -1; }
+    }
+    if (t.mode === 'up') {
+      if (t.approach) {                                // walk toward the counter
+        t.y += t.approach.speed * dt;
+        if (COUNTER_ROW - t.y <= t.approach.stopAt) {  // it got to you: streak over
+          t.mode = 'falling'; t.anim = 0; stats.streak = 0;
+          popup('Reached you', W / 2, H * .42, 'bad'); playBad();
+        }
+      }
+      if (t.up) { t.timer -= dt; if (t.timer <= 0) { t.mode = 'falling'; t.anim = 0; } }   // popup timed out: it vanishes
+    } else if (t.mode === 'falling') {
+      t.anim += dt; t.flip = Math.max(0, 1 - t.anim / FLIP_TIME);
+      if (t.anim >= FLIP_TIME) { t.mode = 'down'; t.wait = t.down ? between(t.down) : 1.1; }
+    } else if (t.mode === 'down') {
+      t.wait -= dt;
+      if (t.wait <= 0) {                               // come back somewhere new
+        t.x = rand(LANE_MIN_X, LANE_MAX_X); t.z = rand(.4, .65); t.mode = 'rising'; t.anim = 0;
+        if (t.approach) t.y = COUNTER_ROW - between(t.approach.from);   // walkers start again far away
+      }
+    } else if (t.mode === 'rising') {
+      t.anim += dt; t.flip = Math.min(1, t.anim / FLIP_TIME);
+      if (t.anim >= FLIP_TIME) { t.mode = 'up'; t.timer = t.up ? between(t.up) : 0; }
+    }
+  }
+}
+
+/* Turn a target's world position into a screen position.
+   This is the heart of sprite drawing. The 2 lines for tx/ty convert a world
+   offset into "camera space": tx = sideways, ty = how far in front of us. */
+function project(t, scale, horizon) {
+  const dx = t.x - P.x, dy = t.y - P.y;
+  const inv = 1 / (P.planeX * P.dirY - P.dirX * P.planeY);
+  const tx = inv * (P.dirY * dx - P.dirX * dy);
+  const ty = inv * (-P.planeY * dx + P.planeX * dy);
+  if (ty < .3) return null;                              // behind us (or too close)
+  const unit = scale / ty;                               // pixels per meter at this distance
+  const out = {
+    ty,                                                  // depth straight ahead, used for sorting + hiding behind walls
+    dist: Math.hypot(dx, dy),                            // true distance from you in meters (range and scoring use this)
+    sx: (W / 2) * (1 + tx / ty),                         // screen x of the target's center
+    unit,
+  };
+  if (t.kind === 'man' || t.kind === 'civ') {            // person: feet on the floor, "h" tall
+    out.bottom = horizon + .5 * unit; out.top = horizon + (.5 - t.h) * unit;
+    out.sy = (out.top + out.bottom) / 2; out.R = (out.bottom - out.top) / 2;
+  } else {                                               // round target (or a pickup): hangs at height z
+    out.sy = horizon + (.5 - t.z) * unit; out.R = t.r * unit;
+  }
+  return out;
+}
+
+/* Which zone of a target does the screen point (ax, ay) fall in?
+   Returns -1 for a miss, or 0 = best zone (bullseye / head), 1 = middle (inner / chest), 2 = outer (outer / body).
+   Discs use a distance-from-center check. People are split into shapes: a head circle,
+   a torso box (upper half = chest) and a legs box, using the same proportions as the picture. */
+function hitZone(t, p, ax, ay) {
+  if (t.kind === 'disc') {
+    const d = Math.hypot(ax - p.sx, ay - p.sy) / p.R;     // 0 = center, 1 = edge of the paper
+    return d < .2 ? 0 : d < .5 ? 1 : d <= 1 ? 2 : -1;
+  }
+  const Ht = p.bottom - p.top, pad = .8;                 // pad = a little pixel forgiveness so tiny far targets are still hittable
+  const v = (p.bottom - ay) / Ht;                         // 0 at the feet ... 1 at the top of the head
+  const dx = Math.abs(ax - p.sx);
+  if (Math.hypot(ax - p.sx, ay - (p.bottom - .89 * Ht)) <= Math.max(.11 * Ht, 1.5) + pad) return 0;   // head
+  if (v >= .42 && v < .78 && dx <= .19 * Ht + pad) return v >= .6 ? 1 : 2;                         // chest or lower torso
+  if (v >= 0 && v < .42 && dx <= .1 * Ht + pad) return 2;                                           // legs
+  return -1;
+}
+
+/* ---------- 7. INPUT ---------- */
+const keys = {};
+const mouse = { left: false, right: false, bufferUntil: -1, nx: .5, ny: .5 };
+// freeMode = pointer lock unavailable, so we turn by how far the pointer is from 'anchor'
+let playing = false, freeMode = false, started = false;
+const anchor = { x: 0, y: 0 }, lastMouse = { x: 0, y: 0 };
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+addEventListener('keydown', e => {
+  if (menuOpen) { menuKey(e); return; }                      // the mode menu has its own keys
+  if (e.repeat) return;
+  keys[e.code] = true;
+  if (!playing) return;
+  if (e.code === 'KeyR') startReload();
+  const digit = /^Digit([1-9])$/.exec(e.code);               // keys 1..5 pick a weapon
+  if (digit && +digit[1] <= WEAPONS.length) switchTo(+digit[1] - 1);
+  if (e.code === 'Escape' && freeMode) pause();   // when pointer-locked, the browser handles Esc itself
+  if (e.code === 'KeyC' && freeMode) { anchor.x = lastMouse.x; anchor.y = lastMouse.y; mouse.nx = mouse.ny = .5; }   // recenter
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.left = mouse.right = false; });
+
+document.addEventListener('mousedown', e => {
+  if (!playing) return;
+  if (e.button === 0) {
+    mouse.left = true;
+    mouse.bufferUntil = T + FIRE_BUFFER;           // remember the click even if the gun isn't ready yet
+    if (tryFire()) mouse.bufferUntil = -1;         // and if it IS ready, fire right here instead of waiting for the next frame
+  }
+  if (e.button === 2) mouse.right = true;
+});
+addEventListener('mouseup', e => { if (e.button === 0) mouse.left = false; if (e.button === 2) mouse.right = false; });
+frame.addEventListener('contextmenu', e => e.preventDefault());   // no right-click menu
+addEventListener('wheel', e => { if (playing) cycleWeapon(e.deltaY > 0 ? 1 : -1); }, { passive: true });
+
+document.addEventListener('mousemove', e => {
+  lastMouse.x = e.clientX; lastMouse.y = e.clientY;   // always remember where the pointer is
+  if (!playing) return;
+  if (document.pointerLockElement === canvas) {
+    // Pointer lock gives us raw movement deltas. We divide by zoom so that
+    // looking through the scope doesn't feel twitchy.
+    P.angle += e.movementX * .0022 / V.zoom;
+    P.pitch = Math.max(-.5, Math.min(.5, P.pitch - e.movementY * .0022 / V.zoom));
+  } else {
+    // Fallback: how far is the pointer from where it was when we started (or last recentered)?
+    // Clamped to 0..1, so dragging the pointer out of the window can't make it spin faster.
+    const r = frame.getBoundingClientRect();
+    mouse.nx = clamp(.5 + (e.clientX - anchor.x) / r.width, 0, 1);
+    mouse.ny = clamp(.5 + (e.clientY - anchor.y) / r.height, 0, 1);
+  }
+});
+document.addEventListener('mouseleave', () => { mouse.nx = mouse.ny = .5; });   // pointer left the window: stop turning
+
+/* Pointer lock hides the cursor and gives unlimited mouse movement,
+   which is what every first-person game uses. */
+const overlay = document.getElementById('overlay');
+const note = document.getElementById('note');
+function startPlaying(e) {
+  overlay.classList.add('hidden');
+  playing = true; started = true;
+  anchor.x = e && e.clientX != null ? e.clientX : lastMouse.x;      // the click position becomes the "center" for free-mouse turning
+  anchor.y = e && e.clientY != null ? e.clientY : lastMouse.y;
+  mouse.nx = mouse.ny = .5;
+  const ac = audio(); if (ac && ac.resume) ac.resume();    // browsers only allow sound after a click
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { freeMode = true; }); }
+  catch (_) { freeMode = true; }
+  setTimeout(() => { if (playing && document.pointerLockElement !== canvas) freeMode = true; }, 400);
+}
+const goText = document.getElementById('goText');
+function pause() {
+  playing = false; mouse.left = mouse.right = false;
+  overlay.classList.remove('hidden');
+  goText.textContent = started ? 'Paused. Click anywhere to resume' : 'Click anywhere to start';
+  note.textContent = freeMode
+    ? 'Mouse lock isn\u2019t available here. Move the mouse left, right, up, or down from where you clicked to look around, and press C to recenter.'
+    : '';
+}
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === canvas) freeMode = false;
+  else if (playing && !freeMode) pause();                   // Esc released the mouse
+});
+document.addEventListener('pointerlockerror', () => { freeMode = true; });
+overlay.addEventListener('click', startPlaying);
+document.getElementById('resetBtn').addEventListener('click', e => { e.stopPropagation(); resetGame(); });
+document.getElementById('clearBtn').addEventListener('click', e => { e.stopPropagation(); clearRecords(); });
+document.getElementById('menuBtn').addEventListener('click', e => { e.stopPropagation(); openMenu(); });
+
+/* ---------- 8. SOUND ----------
+   No audio files. We synthesize sounds with the Web Audio API.
+   A gunshot is a burst of noise (the crack) plus a quick falling low tone (the thump). */
+let AC = null, noiseBuffer = null;
+function audio() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) {} }
+  return AC;
+}
+function noise(ac) {
+  if (!noiseBuffer) {
+    noiseBuffer = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+    const d = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuffer;
+}
+function playShot(kind) {
+  const ac = AC; if (!ac) return;
+  const p = { pistol: { d: .16, f: 3200, g: .5, th: 150 },
+              smg:    { d: .09, f: 2800, g: .4, th: 120 },
+              sniper: { d: .75, f: 2200, g: .9, th: 70  },
+              shotgun:{ d: .38, f: 2300, g: .85, th: 85 },
+              revolver:{ d: .55, f: 2600, g: .95, th: 95 },
+              ak:     { d: .22, f: 2700, g: .6,  th: 105 } }[kind];
+  const t0 = ac.currentTime;
+  const src = ac.createBufferSource(); src.buffer = noise(ac);
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(p.f, t0); lp.frequency.exponentialRampToValueAtTime(200, t0 + p.d);   // muffles as it fades
+  const g = ac.createGain(); g.gain.setValueAtTime(p.g, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + p.d);
+  src.connect(lp); lp.connect(g); g.connect(ac.destination); src.start(t0); src.stop(t0 + p.d + .05);
+  const o = ac.createOscillator(); o.frequency.setValueAtTime(p.th, t0); o.frequency.exponentialRampToValueAtTime(35, t0 + p.d);
+  const og = ac.createGain(); og.gain.setValueAtTime(p.g, t0); og.gain.exponentialRampToValueAtTime(.001, t0 + p.d);
+  o.connect(og); og.connect(ac.destination); o.start(t0); o.stop(t0 + p.d + .05);
+}
+function playHit(points) {          // higher score = higher "ding"
+  const ac = AC; if (!ac) return;
+  const t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle'; o.frequency.value = points >= 100 ? 1568 : points >= 50 ? 1175 : 880;
+  g.gain.setValueAtTime(.22, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .28);
+  o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + .3);
+}
+function playPickup() {             // two quick rising notes
+  const ac = AC; if (!ac) return;
+  const t0 = ac.currentTime;
+  [660, 990].forEach((f, i) => {
+    const o = ac.createOscillator(), g = ac.createGain(), t = t0 + i * .09;
+    o.type = 'triangle'; o.frequency.value = f;
+    g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.25, t + .01); g.gain.exponentialRampToValueAtTime(.001, t + .22);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + .25);
+  });
+}
+function playBad() {                // a low buzz for hitting a civilian
+  const ac = AC; if (!ac) return;
+  const t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(150, t0); o.frequency.exponentialRampToValueAtTime(70, t0 + .3);
+  g.gain.setValueAtTime(.22, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .32);
+  o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + .35);
+}
+function playMiss() {               // a quick airy "whip" so a miss still sounds like something happened
+  const ac = AC; if (!ac) return;
+  const t0 = ac.currentTime, src = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = noise(ac); bp.type = 'bandpass'; bp.Q.value = 1.2;
+  bp.frequency.setValueAtTime(2600, t0); bp.frequency.exponentialRampToValueAtTime(900, t0 + .12);
+  g.gain.setValueAtTime(.14, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .13);
+  src.connect(bp); bp.connect(g); g.connect(ac.destination); src.start(t0); src.stop(t0 + .15);
+}
+function playClick() {
+  const ac = AC; if (!ac) return;
+  const t0 = ac.currentTime, src = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = noise(ac); hp.type = 'highpass'; hp.frequency.value = 2500;
+  g.gain.setValueAtTime(.25, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .04);
+  src.connect(hp); hp.connect(g); g.connect(ac.destination); src.start(t0); src.stop(t0 + .05);
+}
+
+/* ---------- 9. SHOOTING ---------- */
+const stats = { score: 0, shots: 0, hits: 0, streak: 0 };
+
+// Records survive a page refresh via localStorage. It can be unavailable or blocked
+// (private mode, sandboxed previews), so every access is wrapped: the game just
+// keeps the records in memory when saving isn't possible.
+const SAVE_KEY = 'shootingRange.records.v2';
+let allRecords = {};                                    // one { high, streak } entry per mode and difficulty, e.g. "rush:hard"
+try { allRecords = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}') || {}; } catch (_) {}
+let records = { high: 0, streak: 0 };                   // the entry for the mode you're playing right now
+function selectRecords(key) { records = allRecords[key] || (allRecords[key] = { high: 0, streak: 0 }); }
+function saveRecords() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(allRecords)); } catch (_) {} }
+function clearRecords() {
+  allRecords = {};
+  if (active) selectRecords(active.mode.id + ':' + active.diff.id);
+  saveRecords(); updateHUD(); if (menuOpen) renderMenu();
+}
+const hud = document.getElementById('hud');
+const hitEl = document.getElementById('hitmark');
+const missEl = document.getElementById('missmark');
+
+// Bullet dents on walls. Each one is just a point in the world (x, y on the map, z = height).
+// We keep the newest 160 and draw them as small dark craters in drawDecals.
+const decals = [];
+function addDecal(x, y, z) { decals.push({ x, y, z }); if (decals.length > 160) decals.shift(); }
+
+// How inaccurate are we right now? All the "skill" of the game lives here.
+function currentSpread() {
+  const wp = cur();
+  const base = (wp.spread + state.bloom) * (state.aiming ? wp.adsSpread : 1);
+  return base + 14 * P.moveAmt * (state.aiming ? .4 : 1);   // walking makes you less accurate
+}
+
+function tryFire() {
+  const wp = cur();
+  if (state.switching > 0 || state.reloading > 0 || T < state.nextShot) return false;
+  if (wp.ammo <= 0) { startReload(); return false; }
+
+  wp.ammo--;
+  stats.shots++;
+  state.nextShot = T + wp.delay;
+
+  // Project every standing target once. Each pellet reuses these.
+  const spread = currentSpread();
+  const { scale, horizon } = viewParams();
+  const standing = [];
+  for (const t of targets) {
+    if (t.mode !== 'up') continue;
+    const p = project(t, scale, horizon);
+    if (p) standing.push({ t, p });
+  }
+
+  const pellets = wp.pellets || 1;           // one bullet, or 8 for the shotgun
+  const hitTargets = new Set(), civTargets = new Set();
+  let total = 0, pelletHits = 0, bestZ = 9, bestT = null, bestP = null, bestMult = 1, civP = null, firstAim = null;
+
+  for (let i = 0; i < pellets; i++) {
+    // Pick the exact pixel this bullet goes through: screen center plus a random
+    // offset inside a circle whose size is the current spread.
+    const ang = Math.random() * Math.PI * 2, rad = Math.sqrt(Math.random()) * spread;
+    const aimX = W / 2 + Math.cos(ang) * rad;
+    const aimY = H / 2 + Math.sin(ang) * rad;
+    if (!firstAim) firstAim = { x: aimX, y: aimY };
+
+    // Cast a real ray through that pixel. Its wall distance decides whether a wall blocks the shot.
+    const aimCam = 2 * aimX / W - 1;
+    castRay(P.dirX + P.planeX * aimCam, P.dirY + P.planeY * aimCam, true);   // bullets fly over the counter
+    const wallDepth = RAY.perp;
+
+    let best = null;
+    for (const { t, p } of standing) {
+      // Past the effective range, this bullet scatters a bit more before it gets to this target.
+      let ax = aimX, ay = aimY;
+      const over = p.dist / wp.range - 1;
+      if (over > 0 && wp.falloff) {
+        const jr = Math.sqrt(Math.random()) * Math.min(90, over * wp.falloff) * (state.aiming ? wp.adsSpread : 1), ja = Math.random() * Math.PI * 2;
+        ax += Math.cos(ja) * jr; ay += Math.sin(ja) * jr;
+      }
+      const zone = hitZone(t, p, ax, ay);                     // -1 = missed this target's shape
+      if (zone < 0) continue;
+      if (p.ty >= wallDepth) continue;                        // a wall is in the way
+      if (!best || p.ty < best.p.ty) best = { t, p, zone };   // keep the closest one we hit
+    }
+
+    if (best) {
+      if (best.t.kind === 'civ') { civTargets.add(best.t); civP = best.p; }   // oops, a civilian
+      else {
+        // The zone decides base points, distance multiplies them (up to 5x), the weapon scales them.
+        const base = [100, 50, 25][best.zone];
+        const mult = Math.min(5, 1 + Math.floor(best.p.dist / 10) * .5);
+        total += Math.round(base * mult * (wp.scoreMul || 1));
+        pelletHits++; hitTargets.add(best.t);
+        if (best.zone < bestZ) { bestZ = best.zone; bestT = best.t; bestP = best.p; bestMult = mult; }
+      }
+    } else {
+      // No target hit, so the bullet kept flying and hit a wall. Work out where, and leave a dent.
+      // The hit point is the player's position plus the ray direction times the wall distance.
+      // Height comes from the aim pixel: screen y = horizon + (0.5 - z) * scale / distance, solved for z.
+      const z = .5 - (aimY - horizon) * wallDepth / scale;
+      if (z > .03 && z < .97) addDecal(P.x + (P.dirX + P.planeX * aimCam) * wallDepth, P.y + (P.dirY + P.planeY * aimCam) * wallDepth, z);
+    }
+  }
+
+  if (civTargets.size) {                                  // you hit a civilian: lose points and your streak
+    for (const t of civTargets) { t.mode = 'falling'; t.anim = 0; }
+    const lost = CIV_PENALTY * civTargets.size;
+    stats.score = Math.max(0, stats.score - lost); stats.streak = 0;
+    popup('Civilian hit -' + lost, civP.sx, civP.top - 6, 'bad');
+    playBad();
+  }
+
+  if (pelletHits) {
+    stats.score += total; stats.hits++; stats.streak++;
+    if (stats.streak > records.streak || stats.score > records.high) {     // new personal best? save it
+      records.streak = Math.max(records.streak, stats.streak);
+      records.high = Math.max(records.high, stats.score);
+      saveRecords();
+    }
+    for (const t of hitTargets) { t.mode = 'falling'; t.anim = 0; }
+    const names = bestT.kind === 'disc' ? ['Bullseye', 'Inner', 'Outer'] : ['Headshot', 'Chest', 'Body'];
+    const label = pellets > 1 ? `${pelletHits}/${pellets} pellets +${total}`
+                : `${names[bestZ]} +${total}${bestMult > 1 ? '  x' + bestMult : ''}`;
+    popup(label, bestP.sx, bestP.sy - bestP.R - 6, ['bull', 'mid', 'out'][bestZ]);
+    hitEl.className = ''; void hitEl.offsetWidth;       // reading offsetWidth restarts the CSS animation
+    hitEl.className = 'on ' + (bestZ === 0 ? 'bull' : '');
+    playHit([100, 50, 25][bestZ]);
+  } else if (!civTargets.size) {
+    stats.streak = 0;
+    missEl.style.left = (firstAim.x / W * 100) + '%';    // show a ring exactly where the bullet went
+    missEl.style.top = (firstAim.y / H * 100) + '%';
+    missEl.className = ''; void missEl.offsetWidth; missEl.className = 'on';
+    playMiss();
+  }
+
+  // After the shot: kick the view, widen the spread, flash, make noise.
+  P.recoil += wp.recoil * (state.aiming ? .8 : 1);
+  P.angle += (Math.random() - .5) * 2 * wp.kickYaw;
+  state.bloom = Math.min(wp.bloomMax, state.bloom + wp.bloom);
+  V.flash = 1; V.kick = 1;
+  playShot(wp.sound);
+  return true;
+}
+
+function startReload() {
+  const wp = cur();
+  if (state.reloading > 0 || state.switching > 0 || wp.ammo >= wp.mag) return;
+  state.reloading = wp.reload; playClick(); setTimeout(playClick, wp.reload * 700);
+}
+function cycleWeapon(dir) {          // mouse wheel: skip weapons you haven't collected yet
+  const n = WEAPONS.length;
+  for (let k = 1; k <= n; k++) { const i = (state.weapon + dir * k + n * n) % n; if (WEAPONS[i].owned) { switchTo(i); return; } }
+}
+function switchTo(i) {
+  if (i === state.weapon || !WEAPONS[i].owned) return;
+  state.weapon = i; state.switching = SWITCH_TIME; state.reloading = 0; state.bloom = 0; playClick();
+}
+// Full reset: score, ammo, weapon state, targets, and the player. Saved records are kept.
+function resetGame() {
+  Object.assign(stats, { score: 0, shots: 0, hits: 0, streak: 0 });
+  WEAPONS.forEach(w => w.ammo = w.mag);
+  WEAPONS.forEach((w, i) => w.owned = startAll || i === 0);   // re-lock the weapons (unless "all weapons" is on) and put the pickups back
+  PICKUPS.forEach(p => p.taken = startAll);
+  decals.length = 0;
+  Object.assign(state, { weapon: START_WEAPON, switching: 0, reloading: 0, nextShot: 0, bloom: 0, aiming: false });
+  Object.assign(P, { x: STATION.x, y: STATION.y, angle: FACING, pitch: 0, recoil: 0, moveAmt: 0 });
+  V.zoom = 1; V.flash = 0; V.kick = 0; mouse.bufferUntil = -1;
+  targets.forEach(resetTarget);
+  hud.querySelectorAll('.pop').forEach(n => n.remove());
+  updateHUD();                                           // refresh the interface right now, not on the next frame
+}
+
+function popup(text, sx, sy, cls) {       // sx/sy are canvas pixels, so convert to % of the frame
+  const el = document.createElement('div');
+  el.className = 'pop ' + cls; el.textContent = text;
+  el.style.left = (sx / W * 100) + '%'; el.style.top = (sy / H * 100) + '%';
+  hud.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+/* ---------- 10. UPDATE (runs every frame, moves the game forward by dt seconds) ---------- */
+let T = 0;   // game clock in seconds (only ticks while playing)
+
+function tryMove(dx, dy) {
+  // Collision: test X and Y separately so we slide along walls instead of sticking.
+  // Counters and dividers are solid, so they keep you inside the booth area.
+  const R = .25;
+  const free = (x, y) => !isWall(x - R, y - R) && !isWall(x + R, y - R) && !isWall(x - R, y + R) && !isWall(x + R, y + R);
+  if (free(P.x + dx, P.y)) P.x += dx;
+  if (free(P.x, P.y + dy)) P.y += dy;
+}
+
+function update(dt) {
+  T += dt;
+  const wp = cur();
+
+  // -- looking --
+  if (freeMode) {                          // turn by how far the mouse is from the center
+    const dz = Math.abs(mouse.nx - .5) < .08 ? 0 : (mouse.nx - .5) * 2;
+    P.angle += dz * 2.4 * dt / V.zoom;
+    const target = (.5 - mouse.ny) * .7;
+    P.pitch += (target - P.pitch) * Math.min(1, dt * 8);
+  }
+  const turn = ((keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0)) * 2.2 * dt / V.zoom;
+  P.angle += turn;
+  P.pitch = Math.max(-.5, Math.min(.5, P.pitch + ((keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0)) * 1.2 * dt / V.zoom));
+
+  // -- aiming + zoom (ease toward the target zoom so it feels smooth) --
+  state.aiming = mouse.right && state.switching <= 0 && state.reloading <= 0;
+  const zTarget = state.aiming ? wp.zoom : 1;
+  V.zoom += (zTarget - V.zoom) * Math.min(1, dt * 14);
+  updateCamera();
+
+  // -- walking: forward/back and strafe, normalized so diagonals aren't faster --
+  let f = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  let s = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+  const len = Math.hypot(f, s);
+  P.moveAmt += ((len ? 1 : 0) - P.moveAmt) * Math.min(1, dt * 10);
+  if (len) {
+    f /= len; s /= len;
+    const speed = 3.2 * (state.aiming ? .5 : 1);
+    const c = Math.cos(P.angle), sn = Math.sin(P.angle);
+    tryMove((c * f - sn * s) * speed * dt, (sn * f + c * s) * speed * dt);
+  }
+
+  collectPickups();
+
+  // -- timers --
+  P.recoil *= Math.exp(-6 * dt);                       // recoil settles back down
+  state.bloom = Math.max(0, state.bloom - wp.recover * dt);
+  V.flash = Math.max(0, V.flash - dt * 14);
+  V.kick = Math.max(0, V.kick - dt * 9);
+  if (state.switching > 0) state.switching -= dt;
+  if (state.reloading > 0) { state.reloading -= dt; if (state.reloading <= 0) wp.ammo = wp.mag; }
+
+  // -- trigger --
+  // Holding the button repeats at the weapon's own pace. A click made while the gun
+  // isn't ready (mid-cooldown) is remembered for FIRE_BUFFER seconds and fires the
+  // instant the gun is ready, so quick taps are never swallowed.
+  if (mouse.left || T <= mouse.bufferUntil) { if (tryFire()) mouse.bufferUntil = -1; }
+
+  updateTargets(dt);
+}
+
+/* ---------- 11. RENDER ---------- */
+
+// Pre-made "darkness" colors so we don't build 640 strings every frame.
+const SHADES = Array.from({ length: 33 }, (_, i) => `rgba(12,14,16,${(i / 32).toFixed(3)})`);
+
+/* Floor + ceiling: go row by row. A row's distance from the horizon tells
+   us how far away that floor row is. Then we step across the row and look
+   up which map tile each pixel sits on (to draw joints, the firing line...). */
+function drawFloorAndCeiling(scale, horizon) {
+  const hz = Math.round(horizon);
+  const rx0 = P.dirX - P.planeX, ry0 = P.dirY - P.planeY;   // ray through the leftmost column
+  const rx1 = P.dirX + P.planeX, ry1 = P.dirY + P.planeY;   // ray through the rightmost column
+  const FAR = 0xFF000000 | (19 << 16) | (17 << 8) | 15;     // color for "too far to bother"
+
+  for (let y = 0; y < H; y++) {
+    const row = y * W, p = y - hz, isFloor = p > 0;
+    if (p === 0) { floorBuf.fill(FAR, row, row + W); continue; }
+    const dist = (.5 * scale) / Math.abs(p);                // eye is half-way up, so floor and ceiling are mirror images
+    if (dist > FOG_DIST * 1.3) { floorBuf.fill(FAR, row, row + W); continue; }
+    const a = Math.min(.85, dist / FOG_DIST * .8), ia = 1 - a;   // fog amount
+    const stepX = dist * (rx1 - rx0) / W * 2, stepY = dist * (ry1 - ry0) / W * 2;   // we shade every 2nd pixel (floors are smooth, nobody notices) and copy it
+    let fx = P.x + dist * rx0, fy = P.y + dist * ry0;       // world position of the first pixel in this row
+
+    for (let x = 0; x < W; x += 2, fx += stepX, fy += stepY) {
+      const ix = Math.floor(fx), iy = Math.floor(fy), ux = fx - ix, uy = fy - iy;
+      let r, g, b, k = ia;
+      if (isFloor) {
+        r = 100; g = 104; b = 108;
+        if ((ix + iy) & 1) { r -= 6; g -= 6; b -= 6; }                       // faint checker
+        if (dist < 14 && (ux < .03 || uy < .03)) { r -= 22; g -= 22; b -= 22; }   // slab joints
+        const ahead = COUNTER_ROW - fy;                        // meters beyond the counter (negative = booth side)
+        const tw = .05 + dist * .004;                          // lines get thicker with distance so they stay visible
+        if (ahead < -1) { r = 58; g = 62; b = 66; }                                                       // rubber mat in the booths and walkway
+        else if (ahead > .2 && ahead < .45) { r = 240; g = 194; b = 48; }                                 // yellow firing line
+        else if (ahead > .6 && (Math.abs(fx - 2.5) < tw || Math.abs(fx - (MW - 2.5)) < tw)) { r = 225; g = 228; b = 230; }   // lane edges
+        else if (ahead > 9 && Math.abs(ahead / 10 - Math.round(ahead / 10)) * 10 < tw * 1.5) { r = 225; g = 228; b = 230; }   // a line every 10 m
+      } else {
+        r = 38; g = 42; b = 46;
+        if ((iy & 3) === 1 && uy > .25 && uy < .75 && ix >= 2 && ix <= MW - 3) { r = 235; g = 238; b = 226; k = 1 - a * .3; }   // ceiling lights
+      }
+      const px = 0xFF000000 | (((b * k + 15 * (1 - k)) | 0) << 16) | (((g * k + 14 * (1 - k)) | 0) << 8) | ((r * k + 12 * (1 - k)) | 0);
+      floorBuf[row + x] = px; floorBuf[row + x + 1] = px;
+    }
+  }
+  ctx.putImageData(floorImg, 0, 0);
+}
+
+/* The DDA ray walker. Given a ray direction it hops from grid line to grid line
+   until it lands in a wall cell, then reports how far away that wall is (RAY.perp),
+   which side was hit, and which wall type. drawWalls uses it for every column and
+   the gun uses it for the exact pixel you shot at. */
+const RAY = { perp: 0, side: 0, cell: 0 };
+const LOW_H = .32;                                       // the counter is about a third as tall as a normal wall
+// skipLow = true makes the ray fly over the low counter. Bullets and "the wall behind the counter" use that.
+function castRay(rdx, rdy, skipLow) {
+  let mapX = Math.floor(P.x), mapY = Math.floor(P.y);
+  const dDx = rdx === 0 ? 1e30 : Math.abs(1 / rdx);     // ray length needed to cross one cell in x
+  const dDy = rdy === 0 ? 1e30 : Math.abs(1 / rdy);     // ...and in y
+  let stepX, stepY, sideX, sideY;
+  if (rdx < 0) { stepX = -1; sideX = (P.x - mapX) * dDx; } else { stepX = 1; sideX = (mapX + 1 - P.x) * dDx; }
+  if (rdy < 0) { stepY = -1; sideY = (P.y - mapY) * dDy; } else { stepY = 1; sideY = (mapY + 1 - P.y) * dDy; }
+
+  let side = 0, cell = 0;
+  while (!cell) {                                       // always step across whichever grid line is nearer
+    if (sideX < sideY) { sideX += dDx; mapX += stepX; side = 0; }
+    else               { sideY += dDy; mapY += stepY; side = 1; }
+    cell = MAP[mapY * MW + mapX];
+    if (skipLow && cell === LOW) cell = 0;              // pretend the counter isn't there
+  }
+
+  // Distance measured straight ahead (not along the ray). Using the
+  // true ray length would bend straight walls into a fisheye curve.
+  RAY.perp = side === 0 ? sideX - dDx : sideY - dDy;
+  RAY.side = side; RAY.cell = cell;
+}
+
+// Which column of the wall texture did the ray hit? (uses the result left in RAY)
+function texColumn(rdx, rdy) {
+  let wallX = RAY.side === 0 ? P.y + RAY.perp * rdy : P.x + RAY.perp * rdx;
+  wallX -= Math.floor(wallX);
+  let tx = Math.floor(wallX * TEX);
+  if ((RAY.side === 0 && rdx > 0) || (RAY.side === 1 && rdy < 0)) tx = TEX - 1 - tx;   // un-mirror
+  return tx;
+}
+
+// Walls: one 1-pixel strip per screen column, using castRay. If the first thing a ray
+// meets is the low counter, we remember it (to draw after the targets, since it is in
+// front of them) and cast again, flying over it, to find the full wall behind.
+const lowPerp = new Float32Array(W), lowTexX = new Int16Array(W), lowSide = new Uint8Array(W);
+
+function drawWalls(scale, horizon) {
+  for (let x = 0; x < W; x++) {
+    const camX = 2 * x / W - 1;                           // -1 (left edge) ... +1 (right edge)
+    const rdx = P.dirX + P.planeX * camX, rdy = P.dirY + P.planeY * camX;
+    castRay(rdx, rdy, false);
+    lowPerp[x] = 0;
+    if (RAY.cell === LOW) {
+      lowPerp[x] = RAY.perp; lowSide[x] = RAY.side; lowTexX[x] = texColumn(rdx, rdy);
+      castRay(rdx, rdy, true);                            // keep looking for the wall behind the counter
+    }
+    const perp = RAY.perp, side = RAY.side, cell = RAY.cell;
+    zBuf[x] = perp;
+
+    const lineH = scale / perp;                           // far = short strip, near = tall strip
+    const top = Math.round(horizon - lineH / 2), h = Math.round(lineH);
+    ctx.drawImage(textures[cell], texColumn(rdx, rdy), 0, 1, TEX, x, top, 1, h);   // stretch a 1px-wide slice of texture
+    const dark = Math.min(.85, perp / FOG_DIST * .8 + (side ? .18 : 0));   // darker with distance; y-facing walls darker for depth
+    ctx.fillStyle = SHADES[Math.round(dark * 32)];
+    ctx.fillRect(x, top, 1, h);
+  }
+}
+
+// The low counter, drawn after the targets so it covers their lower edge, like a real bench would.
+function drawCounter(scale, horizon) {
+  for (let x = 0; x < W; x++) {
+    const perp = lowPerp[x];
+    if (!perp) continue;
+    const lineH = scale / perp;
+    const bottom = Math.round(horizon + lineH / 2), top = Math.round(horizon + lineH / 2 - lineH * LOW_H);
+    ctx.drawImage(textures[LOW], lowTexX[x], 0, 1, TEX, x, top, 1, bottom - top);
+    ctx.fillStyle = SHADES[Math.round(Math.min(.85, perp / FOG_DIST * .8 + (lowSide[x] ? .18 : 0)) * 32)];
+    ctx.fillRect(x, top, 1, bottom - top);
+  }
+}
+
+/* Targets: sort far-to-near so close ones paint over far ones, then draw
+   each as 1-pixel-wide slices, skipping slices hidden behind a wall. Discs hang from a
+   cable; people stand on the floor with a soft shadow under them. */
+function drawTargets(scale, horizon) {
+  const list = [];
+  for (const t of targets) {
+    if (t.mode === 'down') continue;
+    const p = project(t, scale, horizon);
+    if (p) list.push({ t, p });
+  }
+  list.sort((a, b) => b.p.ty - a.p.ty);
+
+  for (const { t, p } of list) {
+    const isDisc = t.kind === 'disc';
+    const halfW = (isDisc ? p.R : t.w / 2 * p.unit) * t.flip;   // t.flip squashes the width, which fakes the flipping animation
+    if (halfW < .5) continue;
+    const cx = Math.round(p.sx), centerVisible = cx >= 0 && cx < W && p.ty < zBuf[cx];
+    if (isDisc) {
+      // Ceiling cable and little trolley (like real indoor ranges use)
+      const ceilY = horizon - .5 * scale / p.ty, topY = p.sy - p.R;
+      if (centerVisible && topY > ceilY) {
+        ctx.fillStyle = '#23272b';
+        ctx.fillRect(cx, ceilY, Math.max(1, Math.round(p.R * .06)), topY - ceilY);
+        ctx.fillRect(cx - p.R * .25, ceilY, p.R * .5, Math.max(2, p.R * .12));
+      }
+    } else if (centerVisible) {                           // soft shadow on the floor under a person
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.beginPath(); ctx.ellipse(p.sx, p.bottom, halfW * 1.2 + 1, Math.max(1, halfW * .3), 0, 0, Math.PI * 2); ctx.fill();
+    }
+    const tex = isDisc ? targetTex : t.kind === 'man' ? manTex : civTex;
+    const tw = isDisc ? TT : MT_W, th = isDisc ? TT : MT_H;
+    const dy = isDisc ? p.sy - p.R : p.top, dh = isDisc ? p.R * 2 : p.bottom - p.top;
+    const left = p.sx - halfW;
+    for (let x = Math.max(0, Math.floor(left)); x < Math.min(W, Math.ceil(p.sx + halfW)); x++) {
+      if (p.ty >= zBuf[x]) continue;                      // this slice is behind a wall
+      const u = (x - left) / (2 * halfW);                 // 0..1 across the target
+      ctx.drawImage(tex, Math.min(tw - 1, Math.floor(u * tw)), 0, 1, th, x, dy, 1, dh);
+    }
+  }
+}
+
+/* Bullet dents. Same math as drawing a target: turn the world point into a screen
+   point. We only draw a dent if the wall it sits on is the nearest thing in that
+   screen column (compared with zBuf), so dents never show through other walls. */
+function drawDecals(scale, horizon) {
+  const inv = 1 / (P.planeX * P.dirY - P.dirX * P.planeY);
+  for (const d of decals) {
+    const dx = d.x - P.x, dy = d.y - P.y;
+    const tx = inv * (P.dirY * dx - P.dirX * dy), ty = inv * (-P.planeY * dx + P.planeX * dy);
+    if (ty < .3) continue;
+    const sx = W / 2 * (1 + tx / ty), sy = horizon + (.5 - d.z) * scale / ty;
+    const col = Math.round(sx);
+    if (col < 0 || col >= W || ty > zBuf[col] + .12) continue;   // off screen, or something nearer is in front of it
+    const r = Math.max(1, .045 * scale / ty);                     // a dent is about 9 cm wide
+    const fade = Math.max(.35, 1 - ty / FOG_DIST * .6);            // far dents are fainter, like the walls
+    ctx.fillStyle = 'rgba(200,205,210,' + (.4 * fade) + ')';       // chipped, lighter rim
+    ctx.beginPath(); ctx.arc(sx, sy, r * 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(10,10,12,' + (.9 * fade) + ')';          // dark hole
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+/* Weapon pickups. Each is a floating, spinning picture of the gun with a glow and a
+   ring on the floor. Walk into one to unlock that weapon. The icons are painted once
+   with canvas shapes (side views of each gun). */
+const IW = 96, IH = 48;
+function makeGunIcon(i) {
+  const c = document.createElement('canvas'); c.width = IW; c.height = IH;
+  const g = c.getContext('2d');
+  const steel = '#cfd6db', dark = '#2a2f33', wood = '#9a6130';
+  const R = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  const Q = (col, pts) => { g.fillStyle = col; g.beginPath(); g.moveTo(pts[0], pts[1]); for (let k = 2; k < pts.length; k += 2) g.lineTo(pts[k], pts[k + 1]); g.closePath(); g.fill(); };
+  if (i === 0) {                                          // pistol
+    R(steel, 18, 12, 56, 12); R(dark, 74, 14, 8, 6); Q(dark, [22, 24, 40, 24, 34, 44, 20, 44]); R(dark, 40, 26, 14, 3);
+  } else if (i === 1) {                                   // revolver
+    R(steel, 40, 14, 50, 6); R(dark, 40, 12, 50, 2); g.fillStyle = steel; g.beginPath(); g.arc(42, 22, 11, 0, Math.PI * 2); g.fill();
+    R(dark, 41, 12, 2, 20); R(steel, 24, 14, 20, 14); Q(wood, [14, 26, 34, 26, 28, 46, 10, 46]); R(dark, 20, 9, 6, 6);
+  } else if (i === 2) {                                   // SMG
+    R(steel, 18, 12, 60, 12); R(dark, 78, 15, 14, 5); R(dark, 38, 24, 10, 22); Q(dark, [22, 24, 34, 24, 30, 44, 18, 44]);
+    R(dark, 4, 14, 14, 3); R(dark, 4, 20, 14, 3); R(dark, 24, 9, 12, 3);
+  } else if (i === 3) {                                   // AK-47
+    Q(wood, [2, 14, 24, 14, 24, 26, 6, 31]); R(steel, 24, 13, 34, 11); R(wood, 58, 14, 24, 10); R(dark, 58, 11, 24, 3); R(dark, 82, 16, 12, 4);
+    Q(dark, [38, 24, 50, 24, 56, 44, 44, 46]); Q(wood, [26, 24, 36, 24, 32, 42, 24, 42]);
+  } else if (i === 4) {                                   // shotgun
+    R(steel, 32, 13, 62, 6); R(dark, 32, 20, 48, 4); R(wood, 52, 19, 22, 7); R(steel, 22, 12, 14, 13); Q(wood, [2, 14, 24, 14, 24, 28, 4, 33]);
+  } else {                                                // sniper
+    R(steel, 34, 20, 60, 5); R(dark, 38, 8, 38, 8); R(steel, 38, 10, 3, 4); R(steel, 73, 10, 3, 4);
+    R(dark, 44, 16, 4, 4); R(dark, 64, 16, 4, 4); R(steel, 20, 18, 22, 10); Q(dark, [2, 18, 22, 18, 22, 30, 4, 35]); R(dark, 28, 28, 8, 8);
+  }
+  return c;
+}
+const gunIcons = WEAPONS.map((_, i) => makeGunIcon(i));
+
+// weapon = index into WEAPONS. They stand in one straight, evenly spaced row (3 m apart) along the
+// back of the walkway. Same height and same float phase, so they bob and spin together. The row is
+// against the back wall: walk along the front of the walkway to pass them, or step in to grab one.
+const PICKUPS = [1, 2, 3, 4, 5].map((weapon, i) => ({ weapon, x: 5 + i * 3, y: MH - 1.6, phase: 0, taken: false }));
+
+function collectPickups() {
+  for (const p of PICKUPS) {
+    if (p.taken || Math.hypot(p.x - P.x, p.y - P.y) > .8) continue;
+    p.taken = true;
+    const w = WEAPONS[p.weapon];
+    w.owned = true; w.ammo = w.mag;
+    switchTo(p.weapon);                                   // pick it up and draw it right away
+    popup('Picked up ' + w.name, W / 2, H * .6, 'bull');
+    playPickup();
+  }
+}
+
+function drawPickups(scale, horizon) {
+  const list = [];
+  for (const p of PICKUPS) {
+    if (p.taken) continue;
+    // the float: height wobbles with a sine wave, each pickup offset by its own phase
+    const pr = project({ x: p.x, y: p.y, z: .4 + Math.sin(T * 2.2 + p.phase) * .035, r: .3 }, scale, horizon);
+    if (pr) list.push({ p, pr });
+  }
+  list.sort((a, b) => b.pr.ty - a.pr.ty);                  // far to near
+
+  for (const { p, pr } of list) {
+    const cx = Math.round(pr.sx), unit = scale / pr.ty;    // unit = pixels per meter at this distance
+    if (cx >= 0 && cx < W && pr.ty < zBuf[cx]) {
+      ctx.strokeStyle = 'rgba(255,170,60,.85)'; ctx.lineWidth = Math.max(1, unit * .04);        // ring on the floor
+      ctx.beginPath(); ctx.ellipse(pr.sx, horizon + .5 * unit, unit * .45, unit * .13, 0, 0, Math.PI * 2); ctx.stroke();
+      const hr = unit * .55, gl = ctx.createRadialGradient(pr.sx, pr.sy, 0, pr.sx, pr.sy, hr);   // soft glow behind the gun
+      gl.addColorStop(0, 'rgba(255,200,90,.45)'); gl.addColorStop(1, 'rgba(255,200,90,0)');
+      ctx.fillStyle = gl; ctx.fillRect(pr.sx - hr, pr.sy - hr, hr * 2, hr * 2);
+    }
+    // The spin: cos() shrinks the picture's width to nothing and back, and when it goes
+    // negative we flip it, so it looks like it's turning around in 3D.
+    const spin = Math.cos(T * 1.8 + p.phase), f = Math.max(.12, Math.abs(spin));
+    const halfW = unit * .5 * f, halfH = unit * .25, left = pr.sx - halfW;
+    for (let x = Math.max(0, Math.floor(left)); x < Math.min(W, Math.ceil(pr.sx + halfW)); x++) {
+      if (pr.ty >= zBuf[x]) continue;                       // hidden behind a wall or divider
+      let u = (x - left) / (2 * halfW); if (spin < 0) u = 1 - u;
+      ctx.drawImage(gunIcons[p.weapon], Math.min(IW - 1, Math.floor(u * IW)), 0, 1, IH, x, pr.sy - halfH, 1, halfH * 2);
+    }
+  }
+}
+
+/* The gun in your hands is not 3D at all. It's a few shapes drawn at
+   the bottom of the screen, nudged around to suggest motion.
+   The order matches WEAPONS: pistol, SMG, shotgun, sniper. */
+const GUNS = [
+  { len: 150, bw: 92,  tw: 54, body: ['#23272b', '#40474d'], flash: 34 },                          // pistol
+  { len: 140, bw: 88,  tw: 50, body: ['#3a3f45', '#6a737a'], flash: 46, cyl: true },                // revolver
+  { len: 190, bw: 104, tw: 50, body: ['#1d2124', '#383f44'], flash: 30, mag: true },                // SMG
+  { len: 215, bw: 100, tw: 46, body: ['#23272b', '#434a50'], flash: 40, akmag: true, wood: true },  // AK-47
+  { len: 175, bw: 116, tw: 76, body: ['#2a2623', '#4a413a'], flash: 66, pump: true },               // shotgun
+  { len: 235, bw: 72,  tw: 34, body: ['#2a3026', '#4a5444'], flash: 54, scope: true },              // sniper
+];
+
+function drawWeapon() {
+  if (V.zoom > 2.1) return;                               // through the scope you don't see the gun
+  const wp = cur(), g = GUNS[state.weapon];
+  const ads = Math.max(0, Math.min(1, (V.zoom - 1) / (wp.zoom - 1)));   // 0 = hip, 1 = fully aimed
+  const breathe = Math.sin(T * 1.6) * 2.5;                // slow idle sway so the gun never looks frozen
+  const bobX = Math.sin(T * 8) * 5 * P.moveAmt, bobY = Math.abs(Math.cos(T * 8)) * 5 * P.moveAmt;   // extra bounce when walking
+  const drop = (state.switching > 0 ? state.switching / SWITCH_TIME : 0)
+             + (state.reloading > 0 ? Math.sin(Math.PI * (1 - state.reloading / wp.reload)) * .55 : 0);
+  const ox = W * (.7 - .2 * ads) + breathe * .6 + bobX;          // gun slides to the center when aiming
+  const oy = H + 14 + breathe + bobY + V.kick * 26 * (1 - ads * .5) + drop * 230;
+  const half = g.bw / 2, tHalf = g.tw / 2;
+
+  // glove
+  ctx.fillStyle = '#1a1d20';
+  ctx.beginPath(); ctx.roundRect(ox - g.bw * .62, oy - 64, g.bw * 1.24, 90, 14); ctx.fill();
+  ctx.fillStyle = '#ff5a1f'; ctx.fillRect(ox - g.bw * .62, oy - 64, g.bw * 1.24, 5);   // orange cuff
+  // magazine (SMG only)
+  if (g.mag) { ctx.fillStyle = '#15181a'; ctx.fillRect(ox - half - 20, oy - 92, 28, 100); }
+  // curved magazine (AK-47 only): a slanted quad
+  if (g.akmag) { ctx.fillStyle = '#17191b'; ctx.beginPath(); ctx.moveTo(ox - half - 4, oy - 100); ctx.lineTo(ox - half + 24, oy - 100); ctx.lineTo(ox - half + 8, oy + 4); ctx.lineTo(ox - half - 34, oy + 14); ctx.closePath(); ctx.fill(); }
+  // body: a trapezoid, wide at the bottom and narrow at the muzzle, so it looks like it's pointing away from us
+  const grad = ctx.createLinearGradient(ox - half, 0, ox + half, 0);
+  grad.addColorStop(0, g.body[0]); grad.addColorStop(.5, g.body[1]); grad.addColorStop(1, g.body[0]);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(ox - half, oy - 40); ctx.lineTo(ox - tHalf, oy - g.len);
+  ctx.lineTo(ox + tHalf, oy - g.len); ctx.lineTo(ox + half, oy - 40);
+  ctx.closePath(); ctx.fill();
+  // shotgun pump handle slides back and forth after each shot
+  if (g.pump) {
+    const slide = Math.sin(Math.PI * Math.min(1, (T - (state.nextShot - wp.delay)) / (wp.delay * .8))) * 18;
+    ctx.fillStyle = '#5a3d26'; ctx.beginPath(); ctx.roundRect(ox - 38, oy - 118 + slide, 76, 34, 6); ctx.fill();
+    ctx.fillStyle = '#3a271a'; for (let i = 0; i < 4; i++) ctx.fillRect(ox - 32, oy - 112 + slide + i * 7, 64, 2);
+  }
+  // revolver cylinder: a steel block with dark flutes
+  if (g.cyl) {
+    const cg = ctx.createLinearGradient(ox - 36, 0, ox + 36, 0);
+    cg.addColorStop(0, '#2d3238'); cg.addColorStop(.5, '#8a949b'); cg.addColorStop(1, '#2d3238');
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.roundRect(ox - 36, oy - 104, 72, 46, 10); ctx.fill();
+    ctx.fillStyle = '#14171a'; for (let k = -2; k <= 2; k++) ctx.fillRect(ox + k * 13 - 1, oy - 100, 2, 38);
+  }
+  // AK-47 wooden handguard
+  if (g.wood) {
+    ctx.fillStyle = '#7a4a24'; ctx.beginPath(); ctx.roundRect(ox - g.tw / 2 - 5, oy - g.len * .8, g.tw + 10, 66, 5); ctx.fill();
+    ctx.fillStyle = '#5a3516'; for (let k = 0; k < 5; k++) ctx.fillRect(ox - g.tw / 2 - 3, oy - g.len * .8 + 8 + k * 11, g.tw + 6, 2);
+  }
+  // front sight
+  ctx.fillStyle = '#0e1012'; ctx.fillRect(ox - 3, oy - g.len - 10, 6, 12);
+  // scope tube (sniper only)
+  if (g.scope) {
+    ctx.fillStyle = '#101214'; ctx.beginPath(); ctx.roundRect(ox - 15, oy - g.len * .74, 30, 84, 8); ctx.fill();
+    ctx.fillStyle = '#2d3a44'; ctx.beginPath(); ctx.ellipse(ox, oy - g.len * .74, 12, 5, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // muzzle flash: a quick radial gradient at the barrel tip
+  if (V.flash > 0) {
+    const fx = ox, fy = oy - g.len - 6, fr = g.flash * (.6 + V.flash * .6);
+    const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
+    fg.addColorStop(0, 'rgba(255,250,210,' + V.flash + ')'); fg.addColorStop(.4, 'rgba(255,170,60,' + V.flash * .8 + ')'); fg.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = fg; ctx.fillRect(fx - fr, fy - fr, fr * 2, fr * 2);
+  }
+}
+
+function render() {
+  updateCamera();
+  const { scale, horizon } = viewParams();
+  drawFloorAndCeiling(scale, horizon);   // 1. background
+  drawWalls(scale, horizon);             // 2. walls (also fills zBuf)
+  drawDecals(scale, horizon);            // 2b. bullet dents on the walls
+  drawTargets(scale, horizon);           // 3. sprites, using zBuf to hide behind walls
+  drawCounter(scale, horizon);           // 4. the low counter, in front of the targets
+  drawPickups(scale, horizon);           // 4b. floating weapon pickups (on your side of the counter)
+  drawWeapon();                          // 5. the gun on top of everything
+}
+
+/* ---------- 12. HUD (copy game state into the HTML elements) ---------- */
+const $ = id => document.getElementById(id);
+const el = { score: $('scoreVal'), acc: $('acc'), streak: $('streak'), best: $('best'), high: $('high'), tag: $('modeTag'), gun: $('gunName'),
+             mag: $('mag'), magMax: $('magMax'), note: $('ammoNote'), cross: $('cross'), scope: $('scope') };
+const slotsEl = $('slots');
+WEAPONS.forEach((w, i) => {
+  const d = document.createElement('div'); d.className = 'slot';
+  d.innerHTML = `<kbd>${i + 1}</kbd><span>${w.name}</span>`; slotsEl.appendChild(d);
+});
+
+// Writing to the page every frame costs time even when nothing changed, so we
+// remember the last value of each element and only write when it differs.
+let frameW = 1;
+function setText(node, str) { if (node._t !== str) { node._t = str; node.textContent = str; } }
+const rangeEl = document.getElementById('range');
+
+function updateHUD() {
+  const wp = cur();
+  setText(el.score, stats.score.toLocaleString());
+  setText(el.acc, 'Accuracy ' + (stats.shots ? Math.round(stats.hits / stats.shots * 100) + '%' : '-'));
+  setText(el.streak, 'Streak ' + stats.streak);
+  setText(el.best, 'Best streak ' + records.streak);
+  setText(el.high, 'High score ' + records.high.toLocaleString());
+  setText(el.tag, active ? active.mode.name + ', ' + active.diff.name : '');
+  setText(el.gun, wp.name + ', good to ' + wp.range + ' m');
+  setText(el.mag, String(wp.ammo));
+  setText(el.magMax, '/ ' + wp.mag);
+  setText(el.note, state.reloading > 0 ? 'Reloading' : wp.ammo === 0 ? 'Empty, press R' : '');
+  [...slotsEl.children].forEach((s, i) => { s.classList.toggle('on', i === state.weapon); s.classList.toggle('locked', !WEAPONS[i].owned); });
+
+  const scoped = V.zoom > 2.1;                            // sniper scope overlay
+  const scopeDisp = scoped ? 'block' : 'none';
+  if (el.scope._d !== scopeDisp) { el.scope._d = scopeDisp; el.scope.style.display = scopeDisp; el.cross.style.display = scoped ? 'none' : 'block'; }
+  // The crosshair gap shows your real accuracy: spread is in canvas pixels, so convert to screen pixels.
+  const gap = Math.round(currentSpread() * frameW / W + 4);
+  if (el.cross._g !== gap) { el.cross._g = gap; el.cross.style.setProperty('--gap', gap + 'px'); }
+
+  // Rangefinder: how far is the target under the crosshair? Gray once it's past this weapon's effective range.
+  const { scale, horizon } = viewParams();
+  let nearest = null;
+  for (const t of targets) {
+    if (t.mode !== 'up') continue;
+    const p = project(t, scale, horizon);
+    if (p && hitZone(t, p, W / 2, H / 2) >= 0 && (nearest === null || p.dist < nearest)) nearest = p.dist;
+  }
+  setText(rangeEl, nearest === null ? '' : Math.round(nearest) + ' m');
+  if (nearest !== null) rangeEl.classList.toggle('far', nearest > wp.range);
+}
+
+function resize() { frameW = frame.clientWidth; frame.style.setProperty('--u', frameW / 100 + 'px'); }
+addEventListener('resize', resize); resize();
+
+/* ---------- 14. THE MODE MENU ----------
+   Plain HTML buttons built from the MODES list above. Picking a mode and pressing Start
+   loads that mode's targets and begins the round. "Change mode" in the pause card comes back here. */
+const menuEl = $('menu'), modeListEl = $('modeList'), diffRowEl = $('diffRow'), optAllEl = $('optAll');
+let menuOpen = true;
+const sel = { mode: 0, diff: 1, all: false };           // what's highlighted in the menu (Normal by default)
+
+function renderMenu(focusMode) {
+  modeListEl.innerHTML = '';
+  MODES.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'modeBtn'; b.setAttribute('aria-pressed', String(i === sel.mode));
+    b.innerHTML = `<b>${i + 1}. ${m.name}</b><span>${m.tags.join(', ')}</span>`;
+    b.addEventListener('click', () => { sel.mode = i; renderMenu(); });
+    modeListEl.appendChild(b);
+  });
+  if (focusMode && modeListEl.children[sel.mode]) modeListEl.children[sel.mode].focus();
+
+  const m = MODES[sel.mode];
+  $('mdName').textContent = m.name;
+  $('mdBlurb').textContent = m.blurb;
+  $('mdTags').innerHTML = m.tags.map(t => `<li>${t}</li>`).join('');
+  const rec = allRecords[m.id + ':' + DIFFS[sel.diff].id];
+  $('mdBest').textContent = rec && rec.high ? `Best ${rec.high.toLocaleString()} points, streak ${rec.streak}` : 'No score yet on this difficulty';
+
+  diffRowEl.innerHTML = '';
+  DIFFS.forEach((d, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = d.name; b.setAttribute('aria-pressed', String(i === sel.diff));
+    b.addEventListener('click', () => { sel.diff = i; renderMenu(); });
+    diffRowEl.appendChild(b);
+  });
+  optAllEl.checked = sel.all;
+}
+function openMenu() {
+  menuOpen = true; playing = false;
+  overlay.classList.add('hidden'); menuEl.classList.remove('hidden');
+  renderMenu();
+}
+function startMode(e) {
+  if (!menuOpen) return;
+  menuOpen = false; menuEl.classList.add('hidden');
+  loadMode(MODES[sel.mode], DIFFS[sel.diff], sel.all);
+  startPlaying(e);                                       // hides the cards, locks the mouse, starts the sound
+}
+function menuKey(e) {
+  if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    sel.mode = (sel.mode + (e.code === 'ArrowDown' ? 1 : MODES.length - 1)) % MODES.length; renderMenu(true);
+  } else if (/^Digit[1-9]$/.test(e.code) && +e.code.slice(5) <= MODES.length) {
+    sel.mode = +e.code.slice(5) - 1; renderMenu(true);
+  } else if (e.code === 'Enter' && !(e.target && e.target.closest && e.target.closest('button'))) {
+    startMode();
+  }
+}
+$('startBtn').addEventListener('click', startMode);
+optAllEl.addEventListener('change', () => { sel.all = optAllEl.checked; });
+
+loadMode(MODES[0], DIFFS[1], false);                     // targets to show behind the menu
+renderMenu();
+
+/* ---------- 13. THE GAME LOOP ----------
+   requestAnimationFrame calls this ~60 times a second. dt is the time since
+   the last frame, so the game runs at the same speed on slow and fast computers. */
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (playing) update(dt);
+  render();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
