@@ -1,0 +1,5943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        background: #312e2b;
+        color: #fff;
+        font-family: "Segoe UI", Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        padding: 30px 15px;
+    }
+
+    .game {
+        width: min(100%, 950px);
+    }
+
+    h1 {
+        margin: 0 0 10px;
+        font-size: 28px;
+        color: #fff;
+    }
+
+    .layout {
+        display: grid;
+        grid-template-columns: minmax(300px, 600px) 280px;
+        gap: 20px;
+        align-items: start;
+    }
+
+    #board {
+        width: 100%;
+        aspect-ratio: 1;
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        grid-template-rows: repeat(8, 1fr);
+        border-radius: 5px;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    /* Each square can stack up to three tint layers:
+       --l1 king-in-check glow, --l2 premove tint, --l3 right-click mark */
+    .square {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: clamp(34px, 10.5vw, 74px);
+        cursor: pointer;
+        background-image: var(--l1, none), var(--l2, none), var(--l3, none);
+    }
+
+    .light {
+        background-color: #eeeed2;
+    }
+
+    .dark {
+        background-color: #769656;
+    }
+
+    .square.selected.light,
+    .square.lastmove.light {
+        background-color: #f6f669;
+    }
+
+    .square.selected.dark,
+    .square.lastmove.dark {
+        background-color: #baca2b;
+    }
+
+    /* Legal-move dots and capture rings */
+    .square.legal::after {
+        content: "";
+        position: absolute;
+        top: 34%;
+        left: 34%;
+        width: 32%;
+        height: 32%;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, .15);
+        pointer-events: none;
+    }
+
+    .square.capture::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(transparent 0%, transparent 79%, rgba(0, 0, 0, .15) 80%);
+        pointer-events: none;
+    }
+
+    .square.check {
+        --l1: radial-gradient(ellipse at center, rgb(255, 0, 0) 0%, rgb(231, 0, 0) 25%, rgba(169, 0, 0, 0) 89%, rgba(158, 0, 0, 0) 100%);
+    }
+
+    .square.premove {
+        --l2: linear-gradient(rgba(20, 85, 200, .5), rgba(20, 85, 200, .5));
+    }
+
+    .piece {
+        position: relative;
+        z-index: 1;
+        line-height: 1;
+        filter: drop-shadow(2px 3px 2px rgba(0,0,0,.35));
+    }
+
+    .white-piece {
+        color: #fff;
+        text-shadow:
+            1px 1px 0 #222,
+            -1px -1px 0 #222,
+            1px -1px 0 #222,
+            -1px 1px 0 #222;
+    }
+
+    .black-piece {
+        color: #111;
+    }
+
+    .coord {
+        position: absolute;
+        font-size: 12px;
+        font-weight: bold;
+        pointer-events: none;
+        z-index: 2;
+    }
+
+    .light .coord {
+        color: #769656;
+    }
+
+    .dark .coord {
+        color: #eeeed2;
+    }
+
+    .file {
+        bottom: 2px;
+        right: 4px;
+    }
+
+    .rank {
+        top: 2px;
+        left: 4px;
+    }
+
+    .panel {
+        background: #262421;
+        border-radius: 10px;
+        padding: 18px;
+    }
+
+    .side-select {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        font-size: 14px;
+        color: #c3c2c1;
+    }
+
+    .side-select select {
+        background: #1f1e1c;
+        color: #fff;
+        border: 1px solid #4a4743;
+        border-radius: 5px;
+        padding: 6px 8px;
+        font-size: 14px;
+        cursor: pointer;
+        flex: 1;
+    }
+
+    .status {
+        font-size: 18px;
+        font-weight: bold;
+        margin: 4px 0 14px;
+    }
+
+    .phase {
+        background: #2f2d2a;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 15px;
+    }
+
+    .phase-title {
+        font-size: 13px;
+        color: #a9a8a6;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+    }
+
+    .phase-name {
+        font-size: 21px;
+        font-weight: bold;
+        margin-top: 4px;
+    }
+
+    .phase-advice {
+        color: #bdbcba;
+        font-size: 14px;
+        margin-top: 7px;
+        line-height: 1.4;
+    }
+
+    .moves {
+        background: #1f1e1c;
+        border-radius: 7px;
+        padding: 12px;
+        min-height: 150px;
+        max-height: 300px;
+        overflow-y: auto;
+        font-family: "Courier New", monospace;
+        font-size: 16px;
+        line-height: 2;
+    }
+
+    .move-row {
+        display: grid;
+        grid-template-columns: 44px 1fr 1fr;
+    }
+
+    .move-number {
+        color: #8b8987;
+        font-weight: bold;
+    }
+
+    .white-move {
+        color: #ffffff;
+        font-weight: 700;
+    }
+
+    .black-move {
+        color: #b7d98b;
+        font-weight: 700;
+    }
+
+    .captured {
+        margin-top: 15px;
+        min-height: 25px;
+        color: #bdbcba;
+        font-size: 20px;
+        word-break: break-all;
+    }
+
+    button {
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-top: 15px;
+        margin-right: 5px;
+        background: #81b64c;
+        color: #fff;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 4px 0 #45753c;
+        position: relative;
+        top: 0;
+    }
+
+    button:hover {
+        background: #a3d160;
+    }
+
+    button:active {
+        top: 3px;
+        box-shadow: 0 1px 0 #45753c;
+    }
+
+    .hint {
+        margin-top: 15px;
+        padding: 12px;
+        background: #2f2d2a;
+        border-radius: 7px;
+        color: #bdbcba;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .openings {
+        background: #2f2d2a;
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 15px;
+    }
+
+    .openings-title {
+        font-size: 13px;
+        color: #a9a8a6;
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        margin-bottom: 8px;
+    }
+
+    .openings select {
+        width: 100%;
+        background: #1f1e1c;
+        color: #fff;
+        border: 1px solid #4a4743;
+        border-radius: 5px;
+        padding: 8px;
+        font-size: 14px;
+    }
+
+    .openings button {
+        margin-top: 12px;
+    }
+
+    .guide-text {
+        color: #bdbcba;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-top: 14px;
+    }
+
+    .guide-text strong {
+        color: #fff;
+    }
+
+    .guide-text .guide-note {
+        display: block;
+        margin-top: 6px;
+    }
+
+    .opening-desc {
+        color: #bdbcba;
+        font-size: 13px;
+        line-height: 1.45;
+        margin-top: 14px;
+    }
+
+    @media (max-width: 750px) {
+        .layout {
+            grid-template-columns: 1fr;
+        }
+
+        .panel {
+            order: 2;
+        }
+    }
+
+    .board-wrap {
+        position: relative;
+    }
+
+    /* Right-click arrows are drawn here, above the pieces */
+    #arrows {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 3;
+    }
+
+    .promo {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, .6);
+        z-index: 5;
+    }
+
+    .promo[hidden] {
+        display: none;
+    }
+
+    .promo-box {
+        background: #262421;
+        border-radius: 10px;
+        padding: 16px;
+        text-align: center;
+    }
+
+    .promo-label {
+        font-size: 14px;
+        color: #c3c2c1;
+        margin-bottom: 10px;
+    }
+
+    .promo-row {
+        display: flex;
+        gap: 10px;
+    }
+
+    .promo-choice {
+        margin: 0;
+        padding: 0;
+        width: clamp(48px, 11vw, 72px);
+        height: clamp(48px, 11vw, 72px);
+        font-size: clamp(32px, 8vw, 52px);
+        line-height: 1;
+        background: #eeeed2;
+        box-shadow: 0 3px 0 #769656;
+    }
+
+    .promo-choice:hover {
+        background: #f6f669;
+    }
+
+    .move-result {
+        color: #8b8987;
+        font-weight: bold;
+        margin-top: 4px;
+        border-top: 1px solid #3a3835;
+    }
+
+    .level-note {
+        color: #a9b8a0;
+        font-size: 12px;
+        line-height: 1.4;
+        margin: -2px 0 10px;
+        min-height: 0;
+    }
+
+    .level-note:empty {
+        display: none;
+    }
+
+    /* Label above the select so long names like
+       "Bot - International Master" always fit the panel. */
+    .side-select {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+
+    select option,
+    select optgroup {
+        background: #1f1e1c;
+        color: #fff;
+    }
+
+    .side-select[hidden] {
+        display: none;
+    }
+
+    .side-select label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: #a9a8a6;
+    }
+
+    .side-select select {
+        flex: none;
+        width: 100%;
+        min-width: 0;
+        text-overflow: ellipsis;
+    }
+
+    .board-col {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .clock {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        background: #262421;
+        border-radius: 6px;
+        padding: 6px 14px;
+        color: #a9a8a6;
+    }
+
+    .clock[hidden] {
+        display: none;
+    }
+
+    .clock-name {
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .clock-time {
+        font-family: "Courier New", monospace;
+        font-size: 28px;
+        font-weight: bold;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .clock.active {
+        background: #fff;
+        color: #262421;
+    }
+
+    .clock.low .clock-time {
+        color: #ff7b72;
+    }
+
+    .clock.active.low .clock-time {
+        color: #c0392b;
+    }
+
+    /* ===== Online 1v1 ===== */
+    .online-box {
+        background: #2f2d2a;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 0 0 15px;
+    }
+    .online-box button { margin-top: 10px; }
+    .online-box input {
+        background: #1f1e1c;
+        color: #fff;
+        border: 1px solid #4a4743;
+        border-radius: 5px;
+        padding: 9px 10px;
+        font-size: 15px;
+        font-family: "Courier New", monospace;
+        text-transform: uppercase;
+        letter-spacing: .12em;
+        width: 130px;
+    }
+    .join-row { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+    .room-code {
+        font-family: "Courier New", monospace;
+        font-size: 30px;
+        font-weight: 700;
+        letter-spacing: .22em;
+        color: #b7d98b;
+        margin: 4px 0 0;
+        user-select: all;
+    }
+    .online-note { color: #a9a8a6; font-size: 12px; line-height: 1.4; margin-top: 8px; }
+    .online-status { margin-top: 10px; font-size: 14px; font-weight: 600; color: #e6e5e3; }
+    .online-status.ok   { color: #9fd26a; }
+    .online-status.warn { color: #f0b84a; }
+    .online-status.err  { color: #f0705e; }
+    .online-info { color: #8b8987; font-size: 12px; margin-top: 3px; min-height: 1em; }
+    .draw-prompt { margin-top: 10px; font-size: 14px; color: #f0b84a; }
+    button.danger { background: #c0463a; box-shadow: 0 4px 0 #8a2f27; }
+    button.danger:hover { background: #dd5a4c; }
+    button.danger:active { box-shadow: 0 1px 0 #8a2f27; }
+    button:disabled { opacity: .55; cursor: default; }
+    .online-mode .local-only { display: none !important; }
+</style>
+<script>
+/* PeerJS (WebRTC) for online 1v1. Tries jsDelivr first, then unpkg. */
+(function () {
+    if (window.Peer) return;
+    var urls = [
+        "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js",
+        "https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"
+    ];
+    function load(i) {
+        if (i >= urls.length) return;
+        var el = document.createElement("script");
+        el.src = urls[i];
+        el.onerror = function () { load(i + 1); };
+        document.head.appendChild(el);
+    }
+    load(0);
+})();
+</script>
+</head>
+
+<body>
+
+<div class="game">
+    <h1>Chess</h1>
+    <div class="layout">
+
+        <div class="board-col">
+
+            <div class="clock" id="clockTop" hidden>
+                <span class="clock-name" id="clockTopName"></span>
+                <span class="clock-time" id="clockTopTime"></span>
+            </div>
+
+            <div class="board-wrap">
+                <div id="board"></div>
+                <svg id="arrows" viewBox="0 0 8 8" preserveAspectRatio="none"></svg>
+                <div id="promo" class="promo" hidden></div>
+            </div>
+
+            <div class="clock" id="clockBottom" hidden>
+                <span class="clock-name" id="clockBottomName"></span>
+                <span class="clock-time" id="clockBottomTime"></span>
+            </div>
+
+        </div>
+
+        <div class="panel">
+
+            <div class="status" id="status"></div>
+
+            <div class="phase">
+                <div class="phase-title">Game phase</div>
+                <div class="phase-name" id="phaseName"></div>
+                <div class="phase-advice" id="phaseAdvice"></div>
+            </div>
+
+            <div class="side-select">
+                <label for="opponentSelect">Opponent:</label>
+                <select id="opponentSelect" onchange="onOpponentChange()">
+                    <option value="human">Human (2-player, same screen)</option>
+                    <option value="online">Online 1v1 (play a friend)</option>
+                    <option value="cm">Bot — Candidate Master</option>
+                    <option value="fm">Bot — FIDE Master</option>
+                    <option value="im">Bot — International Master</option>
+                    <option value="gm">Bot — Grandmaster</option>
+                </select>
+            </div>
+            <div class="level-note" id="levelNote"></div>
+
+            <div class="online-box" id="onlineBox" hidden>
+                <div class="openings-title">Online 1v1</div>
+
+                <div id="onlineSetup">
+                    <div class="side-select">
+                        <label for="onlineColor">I play as:</label>
+                        <select id="onlineColor">
+                            <option value="r">Random</option>
+                            <option value="w">White</option>
+                            <option value="b">Black</option>
+                        </select>
+                    </div>
+                    <button onclick="onlineCreate()">Create game</button>
+                    <div class="join-row">
+                        <input id="joinCode" type="text" placeholder="CODE" maxlength="8"
+                               autocomplete="off" spellcheck="false"
+                               onkeydown="if (event.key === 'Enter') onlineJoin()">
+                        <button style="margin-top:0" onclick="onlineJoin()">Join</button>
+                    </div>
+                    <div class="online-note">
+                        Host: pick your color and the <b>Time control</b> below, press Create, then send the code to your friend.
+                        Friend: type the code and press Join.
+                    </div>
+                </div>
+
+                <div id="onlineLobby" hidden>
+                    <div class="online-note" style="margin-top:0">Room code — send it to your friend:</div>
+                    <div class="room-code" id="roomCode"></div>
+                    <button onclick="copyInvite(this)">Copy invite</button>
+                </div>
+
+                <div class="online-status" id="onlineStatus"></div>
+                <div class="online-info" id="onlineInfo"></div>
+
+                <div class="draw-prompt" id="drawPrompt" hidden>
+                    Your opponent offers a draw.
+                    <div>
+                        <button onclick="onlineAcceptDraw()">Accept</button>
+                        <button class="danger" onclick="onlineDeclineDraw()">Decline</button>
+                    </div>
+                </div>
+
+                <div id="onlineActions" hidden>
+                    <button class="danger" id="btnResign" onclick="onlineResign()">Resign</button>
+                    <button id="btnDraw" onclick="onlineOfferDraw()">Offer draw</button>
+                    <button id="btnRematch" onclick="onlineRematch()" hidden>Rematch</button>
+                </div>
+
+                <button class="danger" id="btnLeave" onclick="onlineLeave()" hidden>Leave game</button>
+            </div>
+
+            <div class="side-select" id="botOpeningBox" hidden>
+                <label for="botOpeningSelect">Bot opening:</label>
+                <select id="botOpeningSelect" onchange="onBotOpeningChange()"></select>
+            </div>
+
+            <div class="side-select">
+                <label for="colorSelect">Play as:</label>
+                <select id="colorSelect" onchange="onColorChange()">
+                    <option value="w">White</option>
+                    <option value="b">Black</option>
+                </select>
+            </div>
+            <div class="side-select">
+                <label for="timeSelect">Time control:</label>
+                <select id="timeSelect" onchange="onTimeChange()">
+                    <option value="off">No clock</option>
+                    <option value="1+0">1 min</option>
+                    <option value="3+0">3 min</option>
+                    <option value="3+2">3 min + 2 s</option>
+                    <option value="5+0">5 min</option>
+                    <option value="10+0">10 min</option>
+                    <option value="15+10">15 min + 10 s</option>
+                </select>
+            </div>
+
+            <strong>Move history</strong>
+            <div class="moves" id="moves"></div>
+
+            <div>
+                <strong>Captured</strong>
+                <div class="captured" id="captured">—</div>
+            </div>
+
+            <button class="local-only" onclick="undoMove()">Undo</button>
+            <button class="local-only" onclick="flipBoard()">Flip Board</button>
+            <button class="local-only" onclick="newGame()">New Game</button>
+
+            <div class="openings local-only">
+                <div class="openings-title">Opening guide</div>
+                <select id="guideSelect" onchange="onGuideSelect()"></select>
+                <button onclick="startGuide()">Start Guide</button>
+                <button onclick="stopGuide()">Stop</button>
+                <div class="guide-text" id="guideText"></div>
+            </div>
+
+            <div class="openings local-only">
+                <div class="openings-title">Openings </div>
+                <select id="openingSelect" onchange="onOpeningSelect()"></select>
+                <button onclick="loadOpening()">Load Position</button>
+                <div class="opening-desc" id="openingDesc">
+                    Select an opening to see its idea and starting moves, then load it onto the board to practice from there.
+                </div>
+            </div>
+
+            <div class="hint">
+                <strong>Right-click</strong> a square to highlight it, or <strong>right-click and drag</strong> to draw an arrow.
+                Arrows are yellow; hold Shift (red), Ctrl (blue) or Alt (green) for other colors. Left-click clears them.<br>
+                <strong>Opening guide:</strong> pick any opening, defense or gambit (try the Alien Gambit). A purple arrow shows your next move.<br>
+                <strong>Premove:</strong> against a bot or an online opponent, pick a piece and a square while it's their turn. Click an empty square to cancel.
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- Rules, bot engine, levels and opening book. Not run directly: the
+     script below injects it into the page AND into a Web Worker. -->
+<script id="core" type="text/plain">
+/*
+    CORE: rules + bot engine + opening book.
+    No DOM access and no global game state in here, so the exact same
+    code can run on the main thread AND inside a Web Worker.
+
+    Every function that needs castling rights / en passant takes them in
+    a `st` object:  { castling: {K,Q,k,q}, enPassant: {r,c} | null }
+
+    Board coordinates: a8 = [0][0], h1 = [7][7].
+    Uppercase = White, lowercase = Black, "." = empty.
+*/
+
+const files = ["a","b","c","d","e","f","g","h"];
+
+function isWhite(piece) {
+    return piece && piece === piece.toUpperCase();
+}
+
+function colorOf(piece) {
+    if (!piece || piece === ".") return null;
+    return isWhite(piece) ? "w" : "b";
+}
+
+function opponent(color) {
+    return color === "w" ? "b" : "w";
+}
+
+function inside(r, c) {
+    return r >= 0 && r < 8 && c >= 0 && c < 8;
+}
+
+function cloneBoard(b) {
+    return b.map(row => [...row]);
+}
+
+// "e4" -> {r, c}
+function squareToRC(sq) {
+    return {
+        r: 8 - parseInt(sq[1], 10),
+        c: files.indexOf(sq[0])
+    };
+}
+
+
+/* =========================
+   MOVE GENERATION
+========================= */
+
+function getPseudoMoves(r, c, b, color, st) {
+
+    const piece = b[r][c];
+    if (piece === ".") return [];
+
+    const type = piece.toUpperCase();
+    const moves = [];
+
+    function add(nr, nc, extra = {}) {
+        if (!inside(nr, nc)) return;
+
+        const target = b[nr][nc];
+
+        if (target === "." || colorOf(target) !== color) {
+            moves.push({
+                from: {r, c},
+                to: {r: nr, c: nc},
+                ...extra
+            });
+        }
+    }
+
+    function slide(directions) {
+        for (const [dr, dc] of directions) {
+            let nr = r + dr;
+            let nc = c + dc;
+
+            while (inside(nr, nc)) {
+                const target = b[nr][nc];
+
+                if (target === ".") {
+                    add(nr, nc);
+                } else {
+                    if (colorOf(target) !== color) {
+                        add(nr, nc);
+                    }
+                    break;
+                }
+
+                nr += dr;
+                nc += dc;
+            }
+        }
+    }
+
+    if (type === "P") {
+
+        const dir = color === "w" ? -1 : 1;
+        const startRow = color === "w" ? 6 : 1;
+        const promotionRow = color === "w" ? 0 : 7;
+
+        // Forward
+        const nr = r + dir;
+
+        if (inside(nr, c) && b[nr][c] === ".") {
+
+            add(nr, c, {
+                promotion: nr === promotionRow
+            });
+
+            // Double move
+            if (r === startRow &&
+                b[r + dir * 2][c] === ".") {
+
+                add(r + dir * 2, c, {
+                    pawnDouble: true
+                });
+            }
+        }
+
+        // Captures
+        for (const dc of [-1, 1]) {
+            const nc = c + dc;
+
+            if (!inside(nr, nc)) continue;
+
+            const target = b[nr][nc];
+
+            if (
+                target !== "." &&
+                colorOf(target) !== color
+            ) {
+                add(nr, nc, {
+                    promotion: nr === promotionRow
+                });
+            }
+
+            // En passant
+            if (
+                st.enPassant &&
+                st.enPassant.r === nr &&
+                st.enPassant.c === nc
+            ) {
+                add(nr, nc, {
+                    enPassant: true
+                });
+            }
+        }
+
+    } else if (type === "N") {
+
+        const jumps = [
+            [-2,-1], [-2,1],
+            [-1,-2], [-1,2],
+            [1,-2], [1,2],
+            [2,-1], [2,1]
+        ];
+
+        jumps.forEach(([dr, dc]) => add(r + dr, c + dc));
+
+    } else if (type === "B") {
+
+        slide([
+            [-1,-1], [-1,1],
+            [1,-1], [1,1]
+        ]);
+
+    } else if (type === "R") {
+
+        slide([
+            [-1,0], [1,0],
+            [0,-1], [0,1]
+        ]);
+
+    } else if (type === "Q") {
+
+        slide([
+            [-1,-1], [-1,1],
+            [1,-1], [1,1],
+            [-1,0], [1,0],
+            [0,-1], [0,1]
+        ]);
+
+    } else if (type === "K") {
+
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr !== 0 || dc !== 0) {
+                    add(r + dr, c + dc);
+                }
+            }
+        }
+
+        const cs = st.castling;
+
+        // Castling
+        if (color === "w" && r === 7 && c === 4) {
+
+            // Kingside
+            if (
+                cs.K &&
+                b[7][5] === "." &&
+                b[7][6] === "." &&
+                b[7][7] === "R" &&
+                !isSquareAttacked(7,4,"b",b) &&
+                !isSquareAttacked(7,5,"b",b) &&
+                !isSquareAttacked(7,6,"b",b)
+            ) {
+                moves.push({
+                    from:{r,c},
+                    to:{r:7,c:6},
+                    castle:"K"
+                });
+            }
+
+            // Queenside
+            if (
+                cs.Q &&
+                b[7][1] === "." &&
+                b[7][2] === "." &&
+                b[7][3] === "." &&
+                b[7][0] === "R" &&
+                !isSquareAttacked(7,4,"b",b) &&
+                !isSquareAttacked(7,3,"b",b) &&
+                !isSquareAttacked(7,2,"b",b)
+            ) {
+                moves.push({
+                    from:{r,c},
+                    to:{r:7,c:2},
+                    castle:"Q"
+                });
+            }
+        }
+
+        if (color === "b" && r === 0 && c === 4) {
+
+            // Kingside
+            if (
+                cs.k &&
+                b[0][5] === "." &&
+                b[0][6] === "." &&
+                b[0][7] === "r" &&
+                !isSquareAttacked(0,4,"w",b) &&
+                !isSquareAttacked(0,5,"w",b) &&
+                !isSquareAttacked(0,6,"w",b)
+            ) {
+                moves.push({
+                    from:{r,c},
+                    to:{r:0,c:6},
+                    castle:"k"
+                });
+            }
+
+            // Queenside
+            if (
+                cs.q &&
+                b[0][1] === "." &&
+                b[0][2] === "." &&
+                b[0][3] === "." &&
+                b[0][0] === "r" &&
+                !isSquareAttacked(0,4,"w",b) &&
+                !isSquareAttacked(0,3,"w",b) &&
+                !isSquareAttacked(0,2,"w",b)
+            ) {
+                moves.push({
+                    from:{r,c},
+                    to:{r:0,c:2},
+                    castle:"q"
+                });
+            }
+        }
+    }
+
+    return moves;
+}
+
+
+/* =========================
+   LEGAL MOVES
+========================= */
+
+function getLegalMoves(r, c, b, color, st) {
+
+    const pseudo = getPseudoMoves(r, c, b, color, st);
+    const legal = [];
+
+    for (const move of pseudo) {
+
+        const testBoard = cloneBoard(b);
+        applyMoveToBoard(testBoard, move);
+
+        const king = findKing(color, testBoard);
+
+        if (
+            king &&
+            !isSquareAttacked(
+                king.r,
+                king.c,
+                opponent(color),
+                testBoard
+            )
+        ) {
+            legal.push(move);
+        }
+    }
+
+    return legal;
+}
+
+function allLegalMoves(color, b, st) {
+
+    const moves = [];
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+
+            if (colorOf(b[r][c]) === color) {
+                moves.push(
+                    ...getLegalMoves(r, c, b, color, st)
+                );
+            }
+        }
+    }
+
+    return moves;
+}
+
+
+/* =========================
+   ATTACK DETECTION
+========================= */
+
+function isSquareAttacked(r, c, byColor, b) {
+
+    // Pawns
+    const pawn = byColor === "w" ? "P" : "p";
+    const pawnRowDirection = byColor === "w" ? 1 : -1;
+
+    for (const dc of [-1,1]) {
+        const pr = r + pawnRowDirection;
+        const pc = c + dc;
+
+        if (
+            inside(pr,pc) &&
+            b[pr][pc] === pawn
+        ) {
+            return true;
+        }
+    }
+
+    // Knights
+    const knight = byColor === "w" ? "N" : "n";
+
+    const knightJumps = [
+        [-2,-1],[-2,1],
+        [-1,-2],[-1,2],
+        [1,-2],[1,2],
+        [2,-1],[2,1]
+    ];
+
+    for (const [dr,dc] of knightJumps) {
+        const nr = r + dr;
+        const nc = c + dc;
+
+        if (
+            inside(nr,nc) &&
+            b[nr][nc] === knight
+        ) {
+            return true;
+        }
+    }
+
+    // Rooks / Queens
+    const rook = byColor === "w" ? "R" : "r";
+    const queen = byColor === "w" ? "Q" : "q";
+
+    const straight = [
+        [-1,0],[1,0],[0,-1],[0,1]
+    ];
+
+    for (const [dr,dc] of straight) {
+
+        let nr = r + dr;
+        let nc = c + dc;
+
+        while (inside(nr,nc)) {
+
+            const p = b[nr][nc];
+
+            if (p !== ".") {
+
+                if (p === rook || p === queen) {
+                    return true;
+                }
+
+                break;
+            }
+
+            nr += dr;
+            nc += dc;
+        }
+    }
+
+    // Bishops / Queens
+    const bishop = byColor === "w" ? "B" : "b";
+
+    const diagonals = [
+        [-1,-1],[-1,1],
+        [1,-1],[1,1]
+    ];
+
+    for (const [dr,dc] of diagonals) {
+
+        let nr = r + dr;
+        let nc = c + dc;
+
+        while (inside(nr,nc)) {
+
+            const p = b[nr][nc];
+
+            if (p !== ".") {
+
+                if (p === bishop || p === queen) {
+                    return true;
+                }
+
+                break;
+            }
+
+            nr += dr;
+            nc += dc;
+        }
+    }
+
+    // King
+    const king = byColor === "w" ? "K" : "k";
+
+    for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+
+            if (dr === 0 && dc === 0) continue;
+
+            const nr = r + dr;
+            const nc = c + dc;
+
+            if (
+                inside(nr,nc) &&
+                b[nr][nc] === king
+            ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function findKing(color, b) {
+
+    const king = color === "w" ? "K" : "k";
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+
+            if (b[r][c] === king) {
+                return {r,c};
+            }
+        }
+    }
+
+    return null;
+}
+
+
+/* =========================
+   APPLY MOVES (pure helpers)
+========================= */
+
+// Mutates board `b`. move.promoteTo is "Q" | "R" | "B" | "N" (default Q).
+function applyMoveToBoard(b, move) {
+
+    const piece = b[move.from.r][move.from.c];
+
+    b[move.from.r][move.from.c] = ".";
+
+    // En passant capture
+    if (move.enPassant) {
+        const capturedRow =
+            piece === "P"
+                ? move.to.r + 1
+                : move.to.r - 1;
+
+        b[capturedRow][move.to.c] = ".";
+    }
+
+    // Promotion
+    if (move.promotion) {
+        const type = move.promoteTo || "Q";
+        b[move.to.r][move.to.c] =
+            piece === "P" ? type : type.toLowerCase();
+    } else {
+        b[move.to.r][move.to.c] = piece;
+    }
+
+    // Castling (move the rook)
+    if (move.castle) {
+
+        if (move.castle === "K") {
+            b[7][7] = ".";
+            b[7][5] = "R";
+        }
+
+        if (move.castle === "Q") {
+            b[7][0] = ".";
+            b[7][3] = "R";
+        }
+
+        if (move.castle === "k") {
+            b[0][7] = ".";
+            b[0][5] = "r";
+        }
+
+        if (move.castle === "q") {
+            b[0][0] = ".";
+            b[0][3] = "r";
+        }
+    }
+}
+
+// Returns a NEW castling-rights object.
+function updatedCastling(rights, move, piece, capturedPiece) {
+
+    const cs = {...rights};
+
+    // King moved
+    if (piece === "K") {
+        cs.K = false;
+        cs.Q = false;
+    }
+
+    if (piece === "k") {
+        cs.k = false;
+        cs.q = false;
+    }
+
+    // Rook moved
+    if (piece === "R") {
+        if (move.from.r === 7 && move.from.c === 0) cs.Q = false;
+        if (move.from.r === 7 && move.from.c === 7) cs.K = false;
+    }
+
+    if (piece === "r") {
+        if (move.from.r === 0 && move.from.c === 0) cs.q = false;
+        if (move.from.r === 0 && move.from.c === 7) cs.k = false;
+    }
+
+    // Rook captured
+    if (capturedPiece === "R") {
+        if (move.to.r === 7 && move.to.c === 0) cs.Q = false;
+        if (move.to.r === 7 && move.to.c === 7) cs.K = false;
+    }
+
+    if (capturedPiece === "r") {
+        if (move.to.r === 0 && move.to.c === 0) cs.q = false;
+        if (move.to.r === 0 && move.to.c === 7) cs.k = false;
+    }
+
+    return cs;
+}
+
+// boardBefore = the board BEFORE `move` is played.
+// Returns the new {castling, enPassant} state after the move.
+function nextState(st, boardBefore, move) {
+
+    const piece = boardBefore[move.from.r][move.from.c];
+    const target = boardBefore[move.to.r][move.to.c];
+
+    let enPassant = null;
+
+    if (
+        piece.toUpperCase() === "P" &&
+        Math.abs(move.to.r - move.from.r) === 2
+    ) {
+        enPassant = {
+            r: (move.from.r + move.to.r) / 2,
+            c: move.from.c
+        };
+    }
+
+    return {
+        castling: updatedCastling(st.castling, move, piece, target),
+        enPassant
+    };
+}
+
+
+/* =========================================================
+   BOT LEVELS
+
+   Each title is a different mix of:
+     maxDepth  - how many plies deep the search may go
+     timeMs    - thinking-time cap per move
+     margin    - centipawns: moves within this of the best are
+                 "acceptable" (0 = always play the best move)
+     temp      - how randomly it picks among acceptable moves
+     bookPlies - how long it follows opening theory
+========================================================= */
+
+const BOT_LEVELS = {
+    cm: {
+        name: "Candidate Master",
+        maxDepth: 4,
+        timeMs: 800,
+        margin: 90,
+        temp: 35,
+        bookPlies: 8,
+        blurb: "Sees tactics ~4 moves deep. Solid, but still slips on longer combinations."
+    },
+    fm: {
+        name: "FIDE Master",
+        maxDepth: 6,
+        timeMs: 1500,
+        margin: 45,
+        temp: 16,
+        bookPlies: 10,
+        blurb: "Sees ~6 plies deep with only small inaccuracies."
+    },
+    im: {
+        name: "International Master",
+        maxDepth: 8,
+        timeMs: 2500,
+        margin: 30,
+        temp: 10,
+        bookPlies: 12,
+        blurb: "Searches ~8 plies deep and rarely wastes an advantage."
+    },
+    gm: {
+        name: "Grandmaster",
+        maxDepth: 64,
+        timeMs: 5000,
+        margin: 0,
+        temp: 0,
+        bookPlies: 16,
+        blurb: "Full-strength search (up to 5 s per move) with no deliberate mistakes."
+    }
+};
+
+
+/* =========================================================
+   FAST ENGINE
+   Mailbox board, make/unmake, transposition table, PVS,
+   null-move pruning, late-move reductions, killers, history,
+   quiescence search and a tapered evaluation.
+========================================================= */
+
+const Engine = (function () {
+
+    const INF = 1000000;
+    const MATE = 100000;
+    const MATE_BOUND = MATE - 1000;
+    const MAX_PLY = 96;
+    const STOP = "STOP";
+
+    // Piece codes: 1..6 = white P N B R Q K, 7..12 = black
+    const SIDEOF = [-1, 0,0,0,0,0,0, 1,1,1,1,1,1];
+    const TYPEOF = [0, 1,2,3,4,5,6, 1,2,3,4,5,6];
+    const TVAL   = [0, 100, 320, 330, 500, 900, 0];
+
+    /* ---------- precomputed geometry ---------- */
+
+    const KNIGHT = [], KING = [], PATT = [[], []], RAYS = [];
+    const DIRS = [[-1,0],[1,0],[0,1],[0,-1],[-1,1],[-1,-1],[1,1],[1,-1]];
+
+    for (let s = 0; s < 64; s++) {
+        const r = s >> 3, c = s & 7;
+        const kn = [], kg = [], pw = [], pb = [];
+
+        for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) kn.push(nr * 8 + nc);
+        }
+
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (!dr && !dc) continue;
+                const nr = r + dr, nc = c + dc;
+                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) kg.push(nr * 8 + nc);
+            }
+        }
+
+        for (const dc of [-1, 1]) {
+            const nc = c + dc;
+            if (nc < 0 || nc > 7) continue;
+            if (r - 1 >= 0) pw.push((r - 1) * 8 + nc);
+            if (r + 1 < 8)  pb.push((r + 1) * 8 + nc);
+        }
+
+        KNIGHT[s] = kn;
+        KING[s] = kg;
+        PATT[0][s] = pw;   // squares a WHITE pawn on s attacks
+        PATT[1][s] = pb;   // squares a BLACK pawn on s attacks
+
+        RAYS[s] = DIRS.map(([dr, dc]) => {
+            const ray = [];
+            let nr = r + dr, nc = c + dc;
+            while (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                ray.push(nr * 8 + nc);
+                nr += dr; nc += dc;
+            }
+            return ray;
+        });
+    }
+
+    // Castling-rights bits: 1 = K, 2 = Q, 4 = k, 8 = q
+    const CMASK = new Int8Array(64).fill(15);
+    CMASK[60] = 12; CMASK[63] = 14; CMASK[56] = 13;
+    CMASK[4] = 3;   CMASK[7] = 11;  CMASK[0] = 7;
+
+
+    /* ---------- zobrist hashing ---------- */
+
+    let seed = 0x2545F491;
+    function rnd() {
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        return seed | 0;
+    }
+
+    const Z1 = new Int32Array(13 * 64), Z2 = new Int32Array(13 * 64);
+    const ZC1 = new Int32Array(16), ZC2 = new Int32Array(16);
+    const ZE1 = new Int32Array(64), ZE2 = new Int32Array(64);
+    for (let i = 0; i < Z1.length; i++) { Z1[i] = rnd(); Z2[i] = rnd(); }
+    for (let i = 0; i < 16; i++) { ZC1[i] = rnd(); ZC2[i] = rnd(); }
+    for (let i = 0; i < 64; i++) { ZE1[i] = rnd(); ZE2[i] = rnd(); }
+    const ZS1 = rnd(), ZS2 = rnd();
+
+
+    /* ---------- position state ---------- */
+
+    const sq = new Int8Array(64);
+    const kingSq = [0, 0];
+    const npm = [0, 0];            // non-pawn material per side
+    let side = 0, castle = 0, ep = -1, half = 0, h1 = 0, h2 = 0;
+
+    const STK = 1024;
+    const stCap = new Int8Array(STK), stEp = new Int8Array(STK),
+          stCas = new Int8Array(STK), stHalf = new Int16Array(STK);
+    const stH1 = new Int32Array(STK), stH2 = new Int32Array(STK);
+    let sp = 0;
+
+    const hist1 = new Int32Array(4096);   // hash of every position so far
+    let hn = 0;
+
+    function charToPiece(ch) {
+        if (ch === ".") return 0;
+        const i = "PNBRQK".indexOf(ch.toUpperCase()) + 1;
+        return ch === ch.toUpperCase() ? i : i + 6;
+    }
+
+    function computeHash(arr, sd, cs, e) {
+        let a = 0, b = 0;
+        for (let s = 0; s < 64; s++) {
+            const p = arr[s];
+            if (p) { a ^= Z1[p * 64 + s]; b ^= Z2[p * 64 + s]; }
+        }
+        if (sd) { a ^= ZS1; b ^= ZS2; }
+        a ^= ZC1[cs]; b ^= ZC2[cs];
+        if (e >= 0) { a ^= ZE1[e]; b ^= ZE2[e]; }
+        return [a, b];
+    }
+
+    function snapshotToSq(b) {
+        const arr = new Int8Array(64);
+        for (let r = 0; r < 8; r++)
+            for (let c = 0; c < 8; c++)
+                arr[r * 8 + c] = charToPiece(b[r][c]);
+        return arr;
+    }
+
+    function castleBits(cs) {
+        return (cs.K ? 1 : 0) | (cs.Q ? 2 : 0) | (cs.k ? 4 : 0) | (cs.q ? 8 : 0);
+    }
+
+    function epIndex(e) {
+        return e ? e.r * 8 + e.c : -1;
+    }
+
+    function loadPosition(b, color, st, halfClock, prior) {
+
+        for (let r = 0; r < 8; r++)
+            for (let c = 0; c < 8; c++)
+                sq[r * 8 + c] = charToPiece(b[r][c]);
+
+        side = color === "w" ? 0 : 1;
+        castle = castleBits(st.castling);
+        ep = epIndex(st.enPassant);
+        half = halfClock || 0;
+        sp = 0;
+        hn = 0;
+
+        npm[0] = npm[1] = 0;
+
+        for (let s = 0; s < 64; s++) {
+            const p = sq[s];
+            if (!p) continue;
+            const t = TYPEOF[p];
+            if (t === 6) kingSq[SIDEOF[p]] = s;
+            else if (t !== 1) npm[SIDEOF[p]] += TVAL[t];
+        }
+
+        // Positions already seen in the game (for repetition detection)
+        for (const snap of prior) {
+            const arr = snapshotToSq(snap.b);
+            const hh = computeHash(
+                arr,
+                snap.color === "w" ? 0 : 1,
+                castleBits(snap.st.castling),
+                epIndex(snap.st.enPassant)
+            );
+            hist1[hn++] = hh[0];
+        }
+
+        const cur = computeHash(sq, side, castle, ep);
+        h1 = cur[0];
+        h2 = cur[1];
+        hist1[hn++] = h1;
+    }
+
+
+    /* ---------- attacks ---------- */
+
+    function attacked(s, by) {
+
+        const pawn = by === 0 ? 1 : 7;
+        const pa = PATT[by ^ 1][s];
+        for (let i = 0; i < pa.length; i++) {
+            if (sq[pa[i]] === pawn) return true;
+        }
+
+        const knight = by === 0 ? 2 : 8;
+        const kn = KNIGHT[s];
+        for (let i = 0; i < kn.length; i++) {
+            if (sq[kn[i]] === knight) return true;
+        }
+
+        const king = by === 0 ? 6 : 12;
+        const kg = KING[s];
+        for (let i = 0; i < kg.length; i++) {
+            if (sq[kg[i]] === king) return true;
+        }
+
+        const rook = by === 0 ? 4 : 10;
+        const bishop = by === 0 ? 3 : 9;
+        const queen = by === 0 ? 5 : 11;
+        const rays = RAYS[s];
+
+        for (let d = 0; d < 4; d++) {
+            const ray = rays[d];
+            for (let i = 0; i < ray.length; i++) {
+                const p = sq[ray[i]];
+                if (p) {
+                    if (p === rook || p === queen) return true;
+                    break;
+                }
+            }
+        }
+
+        for (let d = 4; d < 8; d++) {
+            const ray = rays[d];
+            for (let i = 0; i < ray.length; i++) {
+                const p = sq[ray[i]];
+                if (p) {
+                    if (p === bishop || p === queen) return true;
+                    break;
+                }
+            }
+        }
+
+        return false;
+    }
+
+
+    /* ---------- move generation ----------
+       move = from | to << 6 | promo << 12 | flag << 15
+       promo: piece type (2 = knight, 5 = queen)
+       flag : 1 = en passant, 2 = castle, 3 = pawn double push
+    */
+
+    const mv = new Int32Array((MAX_PLY + 2) * 256);
+    const ms = new Int32Array((MAX_PLY + 2) * 256);
+
+    let allPromos = false;   // perft only: also generate R/B promotions
+
+    function genMoves(ply, capsOnly) {
+
+        const base = ply * 256;
+        let n = base;
+        const us = side, them = us ^ 1;
+
+        for (let from = 0; from < 64; from++) {
+
+            const p = sq[from];
+            if (!p || SIDEOF[p] !== us) continue;
+
+            const t = TYPEOF[p];
+
+            if (t === 1) {
+
+                const r = from >> 3;
+                const dir = us === 0 ? -8 : 8;
+                const promoRow = us === 0 ? 1 : 6;     // row BEFORE promotion
+                const startRow = us === 0 ? 6 : 1;
+                const to1 = from + dir;
+                const promoting = r === promoRow;
+
+                if (sq[to1] === 0) {
+                    if (promoting) {
+                        mv[n++] = from | (to1 << 6) | (5 << 12);
+                        if (!capsOnly) mv[n++] = from | (to1 << 6) | (2 << 12);
+                        if (allPromos) {
+                            mv[n++] = from | (to1 << 6) | (4 << 12);
+                            mv[n++] = from | (to1 << 6) | (3 << 12);
+                        }
+                    } else if (!capsOnly) {
+                        mv[n++] = from | (to1 << 6);
+                        if (r === startRow && sq[to1 + dir] === 0) {
+                            mv[n++] = from | ((to1 + dir) << 6) | (3 << 15);
+                        }
+                    }
+                }
+
+                const atts = PATT[us][from];
+                for (let i = 0; i < atts.length; i++) {
+                    const to = atts[i];
+                    const tp = sq[to];
+
+                    if (tp !== 0 && SIDEOF[tp] === them) {
+                        if (promoting) {
+                            mv[n++] = from | (to << 6) | (5 << 12);
+                            mv[n++] = from | (to << 6) | (2 << 12);
+                            if (allPromos) {
+                                mv[n++] = from | (to << 6) | (4 << 12);
+                                mv[n++] = from | (to << 6) | (3 << 12);
+                            }
+                        } else {
+                            mv[n++] = from | (to << 6);
+                        }
+                    } else if (tp === 0 && to === ep) {
+                        mv[n++] = from | (to << 6) | (1 << 15);
+                    }
+                }
+
+            } else if (t === 2 || t === 6) {
+
+                const list = t === 2 ? KNIGHT[from] : KING[from];
+
+                for (let i = 0; i < list.length; i++) {
+                    const to = list[i];
+                    const tp = sq[to];
+
+                    if (tp === 0) {
+                        if (!capsOnly) mv[n++] = from | (to << 6);
+                    } else if (SIDEOF[tp] === them) {
+                        mv[n++] = from | (to << 6);
+                    }
+                }
+
+            } else {
+
+                const d0 = t === 3 ? 4 : 0;
+                const d1 = t === 4 ? 4 : 8;
+                const rays = RAYS[from];
+
+                for (let d = d0; d < d1; d++) {
+                    const ray = rays[d];
+
+                    for (let i = 0; i < ray.length; i++) {
+                        const to = ray[i];
+                        const tp = sq[to];
+
+                        if (tp === 0) {
+                            if (!capsOnly) mv[n++] = from | (to << 6);
+                        } else {
+                            if (SIDEOF[tp] === them) mv[n++] = from | (to << 6);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!capsOnly) {
+
+            if (us === 0 && sq[60] === 6) {
+
+                if ((castle & 1) && !sq[61] && !sq[62] && sq[63] === 4 &&
+                    !attacked(60, 1) && !attacked(61, 1) && !attacked(62, 1)) {
+                    mv[n++] = 60 | (62 << 6) | (2 << 15);
+                }
+
+                if ((castle & 2) && !sq[59] && !sq[58] && !sq[57] && sq[56] === 4 &&
+                    !attacked(60, 1) && !attacked(59, 1) && !attacked(58, 1)) {
+                    mv[n++] = 60 | (58 << 6) | (2 << 15);
+                }
+
+            } else if (us === 1 && sq[4] === 12) {
+
+                if ((castle & 4) && !sq[5] && !sq[6] && sq[7] === 10 &&
+                    !attacked(4, 0) && !attacked(5, 0) && !attacked(6, 0)) {
+                    mv[n++] = 4 | (6 << 6) | (2 << 15);
+                }
+
+                if ((castle & 8) && !sq[3] && !sq[2] && !sq[1] && sq[0] === 10 &&
+                    !attacked(4, 0) && !attacked(3, 0) && !attacked(2, 0)) {
+                    mv[n++] = 4 | (2 << 6) | (2 << 15);
+                }
+            }
+        }
+
+        return n - base;
+    }
+
+
+    /* ---------- make / unmake ---------- */
+
+    function movePiece(p, from, to) {
+        sq[from] = 0;
+        sq[to] = p;
+        h1 ^= Z1[p * 64 + from] ^ Z1[p * 64 + to];
+        h2 ^= Z2[p * 64 + from] ^ Z2[p * 64 + to];
+    }
+
+    function makeMove(m) {
+
+        const from = m & 63, to = (m >> 6) & 63;
+        const promo = (m >> 12) & 7, flag = (m >> 15) & 7;
+        const us = side;
+        const p = sq[from];
+        const cap = sq[to];
+
+        stCap[sp] = cap; stEp[sp] = ep; stCas[sp] = castle;
+        stHalf[sp] = half; stH1[sp] = h1; stH2[sp] = h2;
+        sp++;
+
+        if (ep >= 0) { h1 ^= ZE1[ep]; h2 ^= ZE2[ep]; }
+        h1 ^= ZC1[castle]; h2 ^= ZC2[castle];
+
+        half++;
+        if (TYPEOF[p] === 1) half = 0;
+
+        if (cap) {
+            half = 0;
+            h1 ^= Z1[cap * 64 + to];
+            h2 ^= Z2[cap * 64 + to];
+            if (TYPEOF[cap] !== 1) npm[us ^ 1] -= TVAL[TYPEOF[cap]];
+        }
+
+        if (promo) {
+            const placed = us === 0 ? promo : promo + 6;
+            sq[from] = 0;
+            sq[to] = placed;
+            h1 ^= Z1[p * 64 + from] ^ Z1[placed * 64 + to];
+            h2 ^= Z2[p * 64 + from] ^ Z2[placed * 64 + to];
+            npm[us] += TVAL[promo];
+        } else {
+            movePiece(p, from, to);
+        }
+
+        ep = -1;
+
+        if (flag === 1) {
+            const cs = us === 0 ? to + 8 : to - 8;
+            const cp = sq[cs];
+            sq[cs] = 0;
+            h1 ^= Z1[cp * 64 + cs];
+            h2 ^= Z2[cp * 64 + cs];
+        } else if (flag === 3) {
+            ep = us === 0 ? from - 8 : from + 8;
+            h1 ^= ZE1[ep]; h2 ^= ZE2[ep];
+        } else if (flag === 2) {
+            const rook = us === 0 ? 4 : 10;
+            if (to === 62) movePiece(rook, 63, 61);
+            else if (to === 58) movePiece(rook, 56, 59);
+            else if (to === 6) movePiece(rook, 7, 5);
+            else if (to === 2) movePiece(rook, 0, 3);
+        }
+
+        if (TYPEOF[p] === 6) kingSq[us] = to;
+
+        castle &= CMASK[from] & CMASK[to];
+        h1 ^= ZC1[castle]; h2 ^= ZC2[castle];
+
+        side ^= 1;
+        h1 ^= ZS1; h2 ^= ZS2;
+        hist1[hn++] = h1;
+    }
+
+    function unmakeMove(m) {
+
+        hn--;
+        sp--;
+        side ^= 1;
+
+        const us = side;
+        const from = m & 63, to = (m >> 6) & 63;
+        const promo = (m >> 12) & 7, flag = (m >> 15) & 7;
+
+        let p = sq[to];
+
+        if (promo) {
+            p = us === 0 ? 1 : 7;
+            npm[us] -= TVAL[promo];
+        }
+
+        const cap = stCap[sp];
+        sq[from] = p;
+        sq[to] = cap;
+
+        if (cap && TYPEOF[cap] !== 1) npm[us ^ 1] += TVAL[TYPEOF[cap]];
+
+        if (flag === 1) {
+            const cs = us === 0 ? to + 8 : to - 8;
+            sq[cs] = us === 0 ? 7 : 1;
+        } else if (flag === 2) {
+            const rook = us === 0 ? 4 : 10;
+            if (to === 62) { sq[63] = rook; sq[61] = 0; }
+            else if (to === 58) { sq[56] = rook; sq[59] = 0; }
+            else if (to === 6) { sq[7] = rook; sq[5] = 0; }
+            else if (to === 2) { sq[0] = rook; sq[3] = 0; }
+        }
+
+        if (TYPEOF[p] === 6) kingSq[us] = from;
+
+        ep = stEp[sp];
+        castle = stCas[sp];
+        half = stHalf[sp];
+        h1 = stH1[sp];
+        h2 = stH2[sp];
+    }
+
+    function makeNull() {
+        stEp[sp] = ep; stH1[sp] = h1; stH2[sp] = h2; stHalf[sp] = half;
+        sp++;
+        if (ep >= 0) { h1 ^= ZE1[ep]; h2 ^= ZE2[ep]; }
+        ep = -1;
+        side ^= 1;
+        h1 ^= ZS1; h2 ^= ZS2;
+        half++;
+        hist1[hn++] = h1;
+    }
+
+    function unmakeNull() {
+        hn--;
+        sp--;
+        side ^= 1;
+        ep = stEp[sp]; h1 = stH1[sp]; h2 = stH2[sp]; half = stHalf[sp];
+    }
+
+
+    /* ---------- evaluation ---------- */
+
+    const PAWN_T = [
+          0,  0,  0,  0,  0,  0,  0,  0,
+         50, 50, 50, 50, 50, 50, 50, 50,
+         10, 10, 20, 30, 30, 20, 10, 10,
+          5,  5, 10, 25, 25, 10,  5,  5,
+          0,  0,  0, 20, 20,  0,  0,  0,
+          5, -5,-10,  0,  0,-10, -5,  5,
+          5, 10, 10,-20,-20, 10, 10,  5,
+          0,  0,  0,  0,  0,  0,  0,  0
+    ];
+    const KNIGHT_T = [
+        -50,-40,-30,-30,-30,-30,-40,-50,
+        -40,-20,  0,  0,  0,  0,-20,-40,
+        -30,  0, 10, 15, 15, 10,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
+        -30,  0, 15, 20, 20, 15,  0,-30,
+        -30,  5, 10, 15, 15, 10,  5,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
+        -50,-40,-30,-30,-30,-30,-40,-50
+    ];
+    const BISHOP_T = [
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20
+    ];
+    const ROOK_T = [
+          0,  0,  0,  0,  0,  0,  0,  0,
+          5, 10, 10, 10, 10, 10, 10,  5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+         -5,  0,  0,  0,  0,  0,  0, -5,
+          0,  0,  0,  5,  5,  0,  0,  0
+    ];
+    const QUEEN_T = [
+        -20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+         -5,  0,  5,  5,  5,  5,  0, -5,
+          0,  0,  5,  5,  5,  5,  0, -5,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20
+    ];
+    const KING_MG = [
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -20,-30,-30,-40,-40,-30,-30,-20,
+        -10,-20,-20,-20,-20,-20,-20,-10,
+         20, 20,  0,  0,  0,  0, 20, 20,
+         20, 30, 10,  0,  0, 10, 30, 20
+    ];
+    const KING_EG = [
+        -50,-40,-30,-20,-20,-30,-40,-50,
+        -30,-20,-10,  0,  0,-10,-20,-30,
+        -30,-10, 20, 30, 30, 20,-10,-30,
+        -30,-10, 30, 40, 40, 30,-10,-30,
+        -30,-10, 30, 40, 40, 30,-10,-30,
+        -30,-10, 20, 30, 30, 20,-10,-30,
+        -30,-30,  0,  0,  0,  0,-30,-30,
+        -50,-30,-30,-30,-30,-30,-30,-50
+    ];
+    const PST = [null, PAWN_T, KNIGHT_T, BISHOP_T, ROOK_T, QUEEN_T];
+
+    const PASSED = [0, 10, 15, 25, 45, 75, 120, 0];
+
+    const pf = new Int8Array(20);          // pawns per file: side*10 + file + 1
+    const minRowB = new Int8Array(10);     // most advanced black pawn row per file
+    const maxRowW = new Int8Array(10);     // most advanced white pawn row per file
+    const pawnList = [new Int8Array(8), new Int8Array(8)];
+    const rookList = [new Int8Array(10), new Int8Array(10)];
+
+    function centerDist(s) {
+        const r = s >> 3, c = s & 7;
+        return Math.max(3 - r, r - 4) + Math.max(3 - c, c - 4);
+    }
+
+    function evaluate() {
+
+        let score = 0, phase = 0, kMg = 0, kEg = 0;
+        let nPawns0 = 0, nPawns1 = 0, nRooks0 = 0, nRooks1 = 0;
+        let bishops0 = 0, bishops1 = 0, mat0 = 0, mat1 = 0;
+
+        pf.fill(0);
+        minRowB.fill(8);
+        maxRowW.fill(-1);
+
+        for (let s = 0; s < 64; s++) {
+
+            const p = sq[s];
+            if (!p) continue;
+
+            const c = SIDEOF[p], t = TYPEOF[p];
+            const idx = c === 0 ? s : s ^ 56;
+            const sgn = c === 0 ? 1 : -1;
+
+            if (t === 6) {
+                kMg += sgn * KING_MG[idx];
+                kEg += sgn * KING_EG[idx];
+                continue;
+            }
+
+            const v = TVAL[t] + PST[t][idx];
+            score += sgn * v;
+
+            if (c === 0) mat0 += TVAL[t]; else mat1 += TVAL[t];
+
+            if (t === 1) {
+                const f = s & 7, row = s >> 3;
+                pf[c * 10 + f + 1]++;
+                if (c === 0) {
+                    pawnList[0][nPawns0++] = s;
+                    if (row > maxRowW[f + 1]) maxRowW[f + 1] = row;
+                } else {
+                    pawnList[1][nPawns1++] = s;
+                    if (row < minRowB[f + 1]) minRowB[f + 1] = row;
+                }
+            } else if (t === 2) {
+                phase += 1;
+            } else if (t === 3) {
+                phase += 1;
+                if (c === 0) bishops0++; else bishops1++;
+            } else if (t === 4) {
+                phase += 2;
+                if (c === 0) rookList[0][nRooks0++] = s; else rookList[1][nRooks1++] = s;
+            } else if (t === 5) {
+                phase += 4;
+            }
+        }
+
+        // Dead drawn endings: bare kings, or a single minor piece
+        if (nPawns0 + nPawns1 === 0 && npm[0] <= 330 && npm[1] <= 330) return 0;
+
+        const ph = phase > 24 ? 24 : phase;
+        const eg = 24 - ph;
+
+        score += ((kMg * ph + kEg * eg) / 24) | 0;
+
+        // Bishop pair
+        if (bishops0 >= 2) score += 30;
+        if (bishops1 >= 2) score -= 30;
+
+        // Pawn structure
+        for (let f = 0; f < 8; f++) {
+            const w = pf[f + 1], b = pf[10 + f + 1];
+            if (w > 1) score -= 12 * (w - 1);
+            if (b > 1) score += 12 * (b - 1);
+        }
+
+        for (let i = 0; i < nPawns0; i++) {
+            const s = pawnList[0][i];
+            const f = s & 7, row = s >> 3;
+            if (!pf[f] && !pf[f + 2]) score -= 14;                     // isolated
+            if (minRowB[f] >= row && minRowB[f + 1] >= row &&
+                minRowB[f + 2] >= row) {                                // passed
+                score += ((PASSED[7 - row] * (24 + eg)) / 24) | 0;
+            }
+        }
+
+        for (let i = 0; i < nPawns1; i++) {
+            const s = pawnList[1][i];
+            const f = s & 7, row = s >> 3;
+            if (!pf[10 + f] && !pf[10 + f + 2]) score += 14;
+            if (maxRowW[f] <= row && maxRowW[f + 1] <= row &&
+                maxRowW[f + 2] <= row) {
+                score -= ((PASSED[row] * (24 + eg)) / 24) | 0;
+            }
+        }
+
+        // Rooks on open / half-open files
+        for (let i = 0; i < nRooks0; i++) {
+            const f = rookList[0][i] & 7;
+            if (!pf[f + 1]) score += pf[10 + f + 1] ? 10 : 20;
+        }
+        for (let i = 0; i < nRooks1; i++) {
+            const f = rookList[1][i] & 7;
+            if (!pf[10 + f + 1]) score -= pf[f + 1] ? 10 : 20;
+        }
+
+        // King shelter (matters while there are still pieces about)
+        if (ph > 6) {
+            let shelter = 0;
+            const wk = kingSq[0], bk = kingSq[1];
+
+            if ((wk >> 3) >= 6) {
+                for (let df = -1; df <= 1; df++) {
+                    const f = (wk & 7) + df;
+                    if (f < 0 || f > 7) continue;
+                    if (sq[((wk >> 3) - 1) * 8 + f] !== 1) shelter -= 12;
+                }
+            }
+
+            if ((bk >> 3) <= 1) {
+                for (let df = -1; df <= 1; df++) {
+                    const f = (bk & 7) + df;
+                    if (f < 0 || f > 7) continue;
+                    if (sq[((bk >> 3) + 1) * 8 + f] !== 7) shelter += 12;
+                }
+            }
+
+            score += ((shelter * ph) / 24) | 0;
+        }
+
+        // Mop-up: drive a lone king to the edge when clearly winning
+        if (mat0 - mat1 >= 400 && nPawns1 === 0) {
+            const d = Math.abs((kingSq[0] >> 3) - (kingSq[1] >> 3)) +
+                      Math.abs((kingSq[0] & 7) - (kingSq[1] & 7));
+            score += 10 * centerDist(kingSq[1]) + 4 * (14 - d);
+        } else if (mat1 - mat0 >= 400 && nPawns0 === 0) {
+            const d = Math.abs((kingSq[0] >> 3) - (kingSq[1] >> 3)) +
+                      Math.abs((kingSq[0] & 7) - (kingSq[1] & 7));
+            score -= 10 * centerDist(kingSq[0]) + 4 * (14 - d);
+        }
+
+        return side === 0 ? score + 8 : -score + 8;
+    }
+
+
+    /* ---------- search ---------- */
+
+    const TT_BITS = 20;
+    const TT_MASK = (1 << TT_BITS) - 1;
+    const ttKey = new Int32Array(1 << TT_BITS);
+    const ttMv = new Int32Array(1 << TT_BITS);
+    const ttScore = new Int32Array(1 << TT_BITS);
+    const ttDep = new Int8Array(1 << TT_BITS);
+    const ttFlg = new Int8Array(1 << TT_BITS);
+
+    const killers = new Int32Array(MAX_PLY * 2 + 4);
+    const histTab = new Int32Array(2 * 4096);
+
+    let nodes = 0;
+    let deadline = 0;
+
+    function scoreMoves(base, n, ply, ttMove) {
+
+        const k1 = killers[ply * 2], k2 = killers[ply * 2 + 1];
+
+        for (let i = base; i < base + n; i++) {
+
+            const m = mv[i];
+            let s;
+
+            if (m === ttMove) {
+                s = 20000000;
+            } else {
+                const from = m & 63, to = (m >> 6) & 63;
+                const victim = sq[to];
+                const promo = (m >> 12) & 7;
+
+                if (victim) {
+                    s = 10000000 + (TVAL[TYPEOF[victim]] << 4) -
+                        (TVAL[TYPEOF[sq[from]]] >> 4);
+                } else if (((m >> 15) & 7) === 1) {
+                    s = 10000000 + 1600;
+                } else if (promo) {
+                    s = 9000000 + (promo === 5 ? 1000 : 0);
+                } else if (m === k1) {
+                    s = 8000000;
+                } else if (m === k2) {
+                    s = 7000000;
+                } else {
+                    s = histTab[side * 4096 + from * 64 + to];
+                    if (s > 5000000) s = 5000000;
+                }
+            }
+
+            ms[i] = s;
+        }
+    }
+
+    function qsearch(alpha, beta, ply) {
+
+        if ((++nodes & 1023) === 0 && Date.now() > deadline) throw STOP;
+
+        const stand = evaluate();
+        if (ply >= MAX_PLY - 1) return stand;
+        if (stand >= beta) return stand;
+        if (stand > alpha) alpha = stand;
+
+        const base = ply * 256;
+        const n = genMoves(ply, true);
+        scoreMoves(base, n, ply, 0);
+
+        let best = stand;
+
+        for (let i = 0; i < n; i++) {
+
+            // pick the best remaining move
+            let bi = base + i;
+            for (let j = bi + 1; j < base + n; j++) if (ms[j] > ms[bi]) bi = j;
+            const m = mv[bi];
+            mv[bi] = mv[base + i]; mv[base + i] = m;
+            const sc = ms[bi]; ms[bi] = ms[base + i]; ms[base + i] = sc;
+
+            const to = (m >> 6) & 63;
+            const victim = sq[to];
+            const promo = (m >> 12) & 7;
+
+            // delta pruning: even winning the victim can't reach alpha
+            if (!promo && victim &&
+                stand + TVAL[TYPEOF[victim]] + 200 < alpha) continue;
+
+            makeMove(m);
+
+            if (attacked(kingSq[side ^ 1], side)) {
+                unmakeMove(m);
+                continue;
+            }
+
+            const score = -qsearch(-beta, -alpha, ply + 1);
+            unmakeMove(m);
+
+            if (score > best) {
+                best = score;
+                if (score > alpha) {
+                    alpha = score;
+                    if (alpha >= beta) break;
+                }
+            }
+        }
+
+        return best;
+    }
+
+    function search(depth, alpha, beta, ply, nullOk) {
+
+        if ((++nodes & 1023) === 0 && Date.now() > deadline) throw STOP;
+
+        const pv = beta - alpha > 1;
+        const inCheck = attacked(kingSq[side], side ^ 1);
+
+        if (inCheck && ply < MAX_PLY - 8) depth++;
+        if (depth <= 0) return qsearch(alpha, beta, ply);
+        if (ply >= MAX_PLY - 1) return evaluate();
+
+        if (ply > 0) {
+
+            if (half >= 100) return 0;
+
+            // Repetition: seen this position before on the current line
+            const stop = hn - 1 - half;
+            for (let i = hn - 3; i >= 0 && i >= stop; i -= 2) {
+                if (hist1[i] === h1) return 0;
+            }
+
+            // Mate-distance pruning
+            if (alpha < -MATE + ply) alpha = -MATE + ply;
+            if (beta > MATE - ply - 1) beta = MATE - ply - 1;
+            if (alpha >= beta) return alpha;
+        }
+
+        // Transposition table
+        const idx = h1 & TT_MASK;
+        let ttMove = 0;
+
+        if (ttKey[idx] === h2) {
+            ttMove = ttMv[idx];
+
+            if (ply > 0 && ttDep[idx] >= depth && !pv) {
+                let s = ttScore[idx];
+                if (s > MATE_BOUND) s -= ply;
+                else if (s < -MATE_BOUND) s += ply;
+
+                const f = ttFlg[idx];
+                if (f === 0) return s;
+                if (f === 1 && s >= beta) return s;
+                if (f === 2 && s <= alpha) return s;
+            }
+        }
+
+        let staticEval = 0;
+
+        if (!inCheck && !pv) {
+
+            staticEval = evaluate();
+
+            // Reverse futility: position is so good that we skip searching
+            if (depth <= 4 && staticEval - 110 * depth >= beta &&
+                beta > -MATE_BOUND && beta < MATE_BOUND) {
+                return staticEval;
+            }
+
+            // Null-move pruning
+            if (nullOk && depth >= 3 && npm[side] > 0 &&
+                staticEval >= beta) {
+
+                makeNull();
+                const R = depth > 6 ? 3 : 2;
+                const sc = -search(depth - 1 - R, -beta, -beta + 1, ply + 1, false);
+                unmakeNull();
+
+                if (sc >= beta) return sc >= MATE_BOUND ? beta : sc;
+            }
+        }
+
+        const futile = !inCheck && !pv && depth <= 2 &&
+                       staticEval + 140 * depth <= alpha;
+
+        const base = ply * 256;
+        const n = genMoves(ply, false);
+        scoreMoves(base, n, ply, ttMove);
+
+        const origAlpha = alpha;
+        let best = -INF, bestMove = 0, legal = 0;
+
+        for (let i = 0; i < n; i++) {
+
+            let bi = base + i;
+            for (let j = bi + 1; j < base + n; j++) if (ms[j] > ms[bi]) bi = j;
+            const m = mv[bi];
+            mv[bi] = mv[base + i]; mv[base + i] = m;
+            const sc = ms[bi]; ms[bi] = ms[base + i]; ms[base + i] = sc;
+
+            const from = m & 63, to = (m >> 6) & 63;
+            const promo = (m >> 12) & 7, flag = (m >> 15) & 7;
+            const isCap = sq[to] !== 0 || flag === 1;
+            const quiet = !isCap && !promo;
+            const us = side;
+
+            makeMove(m);
+
+            if (attacked(kingSq[us], us ^ 1)) {
+                unmakeMove(m);
+                continue;
+            }
+
+            legal++;
+
+            const givesCheck = attacked(kingSq[side], side ^ 1);
+
+            if (futile && legal > 1 && quiet && !givesCheck) {
+                unmakeMove(m);
+                continue;
+            }
+
+            let score;
+
+            if (legal === 1) {
+                score = -search(depth - 1, -beta, -alpha, ply + 1, true);
+            } else {
+
+                let red = 0;
+
+                if (depth >= 3 && legal > 3 && quiet && !inCheck && !givesCheck) {
+                    red = 1;
+                    if (legal > 8 && depth >= 5) red = 2;
+                    if (red > depth - 2) red = depth - 2;
+                }
+
+                score = -search(depth - 1 - red, -alpha - 1, -alpha, ply + 1, true);
+
+                if (score > alpha && red > 0) {
+                    score = -search(depth - 1, -alpha - 1, -alpha, ply + 1, true);
+                }
+
+                if (score > alpha && score < beta) {
+                    score = -search(depth - 1, -beta, -alpha, ply + 1, true);
+                }
+            }
+
+            unmakeMove(m);
+
+            if (score > best) {
+                best = score;
+                bestMove = m;
+
+                if (score > alpha) {
+                    alpha = score;
+
+                    if (alpha >= beta) {
+
+                        if (quiet) {
+                            if (killers[ply * 2] !== m) {
+                                killers[ply * 2 + 1] = killers[ply * 2];
+                                killers[ply * 2] = m;
+                            }
+                            const hi = us * 4096 + from * 64 + to;
+                            histTab[hi] += depth * depth;
+                        }
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (legal === 0) return inCheck ? -MATE + ply : 0;
+
+        // Store in the transposition table
+        let flag = 0;
+        if (best <= origAlpha) flag = 2;
+        else if (best >= beta) flag = 1;
+
+        let store = best;
+        if (store > MATE_BOUND) store += ply;
+        else if (store < -MATE_BOUND) store -= ply;
+
+        ttKey[idx] = h2;
+        ttMv[idx] = bestMove;
+        ttScore[idx] = store;
+        ttDep[idx] = depth;
+        ttFlg[idx] = flag;
+
+        return best;
+    }
+
+
+    /* ---------- root: iterative deepening + level behaviour ---------- */
+
+    function think(b, color, st, opts) {
+
+        loadPosition(b, color, st, opts.half || 0, opts.prior || []);
+
+        const maxDepth = opts.maxDepth || 64;
+        const margin = opts.margin || 0;
+        const temp = opts.temp || 0;
+
+        deadline = Date.now() + (opts.timeMs || 1000);
+        nodes = 0;
+        killers.fill(0);
+        histTab.fill(0);
+
+        // Legal moves at the root
+        const n = genMoves(0, false);
+        let roots = [];
+
+        for (let i = 0; i < n; i++) {
+            const m = mv[i];
+            makeMove(m);
+            if (!attacked(kingSq[side ^ 1], side)) roots.push({ m, s: 0 });
+            unmakeMove(m);
+        }
+
+        if (roots.length === 0) return null;
+        if (roots.length === 1) return roots[0].m;
+
+        let bestMove = roots[0].m;
+        let bestScore = 0;
+        let lastList = roots.map(r => ({ m: r.m, s: 0, exact: true }));
+
+        for (let depth = 1; depth <= maxDepth; depth++) {
+
+            let iterScore = -INF, iterMove = 0;
+            const list = [];
+            let complete = false;
+
+            try {
+
+                for (let i = 0; i < roots.length; i++) {
+
+                    const m = roots[i].m;
+                    makeMove(m);
+
+                    let score, exact = true;
+
+                    if (margin > 0) {
+                        // "Skill" mode: only moves within `margin` of the best
+                        // get an exact score; the rest fail low cheaply.
+                        const a = iterScore === -INF ? -INF : iterScore - margin;
+                        score = -search(depth - 1, -INF, -a, 1, true);
+                        exact = score > a;
+                    } else if (i === 0) {
+                        score = -search(depth - 1, -INF, INF, 1, true);
+                    } else {
+                        score = -search(depth - 1, -iterScore - 1, -iterScore, 1, true);
+                        if (score > iterScore) {
+                            score = -search(depth - 1, -INF, INF, 1, true);
+                        }
+                    }
+
+                    unmakeMove(m);
+
+                    list.push({ m, s: score, exact });
+
+                    if (exact && score > iterScore) {
+                        iterScore = score;
+                        iterMove = m;
+                    }
+                }
+
+                complete = true;
+
+            } catch (e) {
+                if (e !== STOP) throw e;
+            }
+
+            if (!complete) {
+                // Out of time: a partly searched iteration is still usable
+                // at full strength (best move is searched first).
+                if (margin === 0 && iterMove) {
+                    bestMove = iterMove;
+                    bestScore = iterScore;
+                }
+                break;
+            }
+
+            bestMove = iterMove;
+            bestScore = iterScore;
+            lastList = list;
+
+            roots = list
+                .slice()
+                .sort((x, y) => y.s - x.s)
+                .map(x => ({ m: x.m, s: x.s }));
+
+            // Forced mate found: no need to look deeper
+            if (iterScore > MATE_BOUND) break;
+        }
+
+        if (margin === 0 || temp === 0) return bestMove;
+
+        // Pick among the "acceptable" moves, favouring better ones
+        const cands = lastList.filter(x => x.exact && x.s >= bestScore - margin);
+        if (cands.length <= 1) return bestMove;
+
+        let total = 0;
+        const weights = cands.map(x => {
+            const w = Math.exp((x.s - bestScore) / temp);
+            total += w;
+            return w;
+        });
+
+        let pick = Math.random() * total;
+        for (let i = 0; i < cands.length; i++) {
+            pick -= weights[i];
+            if (pick <= 0) return cands[i].m;
+        }
+
+        return cands[0].m;
+    }
+
+
+    /* ---------- debugging helpers (used by tests) ---------- */
+
+    function perft(b, color, st, depth) {
+
+        loadPosition(b, color, st, 0, []);
+        allPromos = true;
+
+        function go(d, ply) {
+            if (d === 0) return 1;
+            const base = ply * 256;
+            const n = genMoves(ply, false);
+            const list = [];
+            for (let i = 0; i < n; i++) list.push(mv[base + i]);
+
+            let total = 0;
+            for (const m of list) {
+                const us = side;
+                makeMove(m);
+                if (!attacked(kingSq[us], us ^ 1)) total += go(d - 1, ply + 1);
+                unmakeMove(m);
+            }
+            return total;
+        }
+
+        const result = go(depth, 0);
+        allPromos = false;
+        return result;
+    }
+
+    return { think, perft, evaluateFor: (b, c, st) => { loadPosition(b, c, st, 0, []); return evaluate(); } };
+
+})();
+
+
+/* =========================================================
+   OPENING BOOK (used by the bot while it is still "in theory")
+========================================================= */
+
+const BOOK_LINES = [
+    // Open games
+    "e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c2c3 g8f6 d2d4 e5d4 c3d4 c5b4",
+    "e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 d2d3 f8c5 e1g1 d7d6 c2c3 a7a6",
+    "e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5a4 g8f6 e1g1 f8e7 f1e1 b7b5 a4b3 d7d6 c2c3 e8g8",
+    "e2e4 e7e5 g1f3 b8c6 f1b5 g8f6 e1g1 f6e4 d2d4 e4d6 b5c6 d7c6 d4e5 d6f5",
+    "e2e4 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4 g8f6 d4c6 b7c6 e4e5 d8e7 d1e2 f6d5 c2c4",
+    "e2e4 e7e5 g1f3 g8f6 f3e5 d7d6 e5f3 f6e4 d2d4 d6d5 f1d3 f8e7 e1g1 b8c6",
+    // Sicilian
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1e3 e7e5 d4b3 c8e6",
+    "e2e4 c7c5 g1f3 b8c6 d2d4 c5d4 f3d4 g8f6 b1c3 d7d6 c1g5 e7e6 d1d2 a7a6 e1c1 c8d7",
+    "e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6 c1e3 f8g7 f2f3 e8g8 d1d2 b8c6",
+    "e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 a7a6 f1d3 g8f6 e1g1 d8c7",
+    // French / Caro-Kann / Scandinavian / Pirc
+    "e2e4 e7e6 d2d4 d7d5 b1c3 g8f6 c1g5 f8e7 e4e5 f6d7 g5e7 d8e7 f2f4 e8g8",
+    "e2e4 e7e6 d2d4 d7d5 e4e5 c7c5 c2c3 b8c6 g1f3 d8b6 a2a3",
+    "e2e4 e7e6 d2d4 d7d5 b1d2 g8f6 e4e5 f6d7 f1d3 c7c5 c2c3 b8c6 g1e2",
+    "e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 c8f5 e4g3 f5g6 h2h4 h7h6 g1f3 b8d7 h4h5 g6h7",
+    "e2e4 c7c6 d2d4 d7d5 e4e5 c8f5 g1f3 e7e6 f1e2 c6c5 e1g1 b8c6",
+    "e2e4 d7d5 e4d5 d8d5 b1c3 d5a5 d2d4 g8f6 g1f3 c7c6 f1c4 c8f5",
+    "e2e4 d7d6 d2d4 g8f6 b1c3 g7g6 f2f4 f8g7 g1f3 e8g8 f1d3 b8a6",
+    // Queen's pawn
+    "d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 f8e7 e2e3 e8g8 g1f3 b8d7 a1c1 c7c6 f1d3 d5c4 d3c4 f6d5",
+    "d2d4 d7d5 c2c4 d5c4 g1f3 g8f6 e2e3 e7e6 f1c4 c7c5 e1g1 a7a6",
+    "d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 d5c4 a2a4 c8f5 e2e3 e7e6 f1c4 f8b4 e1g1 e8g8",
+    "d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 e7e6 e2e3 b8d7 f1d3 d5c4 d3c4 b7b5 c4d3 a7a6",
+    "d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2 e7e5 e1g1 b8c6 d4d5 c6e7",
+    "d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 e8g8 f1d3 d7d5 g1f3 c7c5 e1g1 b8c6 a2a3 b4c3 b2c3",
+    "d2d4 g8f6 c2c4 e7e6 g1f3 b7b6 g2g3 c8b7 f1g2 f8e7 e1g1 e8g8 b1c3 f6e4",
+    "d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5 f6d5 e2e4 d5c3 b2c3 f8g7 g1f3 c7c5",
+    "d2d4 d7d5 g1f3 g8f6 c1f4 e7e6 e2e3 c7c5 c2c3 b8c6 b1d2 f8d6 f4g3 e8g8",
+    "d2d4 f7f5 g2g3 g8f6 f1g2 e7e6 g1f3 f8e7 e1g1 e8g8 c2c4 d7d6",
+    // Flank openings
+    "c2c4 e7e5 b1c3 g8f6 g1f3 b8c6 g2g3 d7d5 c4d5 f6d5 f1g2 d5b6 e1g1 f8e7",
+    "c2c4 g8f6 b1c3 e7e6 g1f3 d7d5 d2d4 f8e7 c1g5 e8g8",
+    "g1f3 d7d5 g2g3 g8f6 f1g2 e7e6 e1g1 f8e7 d2d3 e8g8 b1d2 c7c5"
+].map(line => line.split(" "));
+
+/* Named variations: [family, name, plies that define the opening, full line, description].
+   Every line also joins the bot's opening book, and every entry appears in the
+   opening lists (trainer + "Bot opening"). */
+const ALIEN_NOTES = {
+    "e2e4": "Start with 1.e4. Black needs to answer 1...c6 (the Caro-Kann) for this gambit to work.",
+    "d2d4": "Take the center. After ...d5 you're in the Caro-Kann main lines.",
+    "b1d2": "3.Nd2 keeps the knight flexible so it can recapture on e4 and later jump to g5.",
+    "b1c3": "3.Nc3 reaches the same idea. The knight recaptures on e4 and heads for g5.",
+    "d2e4": "Recapture on e4 with the knight. From here it will jump to g5, aiming at f7.",
+    "c3e4": "Recapture on e4 with the knight. From here it will jump to g5, aiming at f7.",
+    "e4g5": "This is the Alien move. The knight attacks f7, which only the king protects.",
+    "g5f7": "The gambit! Nxf7 sacrifices a knight to pull the king out and stop Black from castling. Get ready for a long attack.",
+    "g1f3": "Develop with Nf3. Your pieces start flooding toward the exposed king.",
+    "f3e5": "Ne5+! This forks the king and the bishop on g4.",
+    "e5g4": "Take the bishop back. You have your piece again, with an extra pawn and a very exposed enemy king.",
+    "d1g4": "Qxg4 recaptures. Black's king never castled, so keep attacking with Bc4, castling and Re1.",
+    "f1c4": "Bc4 eyes f7 and the exposed king. Next think about Qe2, O-O and Re1.",
+    "d1e2": "Qe2 prepares castling and lines up on the e-file against the king."
+};
+
+const VARIATIONS = [
+// ---- Caro-Kann Defense ----
+["Caro-Kann Defense","Caro-Kann: Advance Variation",5,"e2e4 c7c6 d2d4 d7d5 e4e5 c8f5 g1f3 e7e6 f1e2 c6c5 e1g1 b8c6 c2c3 g8e7","White grabs space with e5. Black develops the light bishop outside the pawn chain and hits the center with ...c5."],
+["Caro-Kann Defense","Caro-Kann: Advance, Bayonet Attack (g4)",7,"e2e4 c7c6 d2d4 d7d5 e4e5 c8f5 g2g4 f5g6 g1e2 e7e6 e2f4 b8d7","An aggressive try: White kicks the bishop with g4 and goes after it with Ne2-f4."],
+["Caro-Kann Defense","Caro-Kann: Classical Variation (4...Bf5)",8,"e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 c8f5 e4g3 f5g6 h2h4 h7h6 g1f3 b8d7 h4h5 g6h7 f1d3 h7d3 d1d3 e7e6 c1f4 d8a5","Black develops the bishop before closing the pawn chain. A solid, classical way to play the Caro-Kann."],
+["Caro-Kann Defense","Caro-Kann: Karpov Variation (4...Nd7)",8,"e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 b8d7 e4g5 g8f6 f1d3 e7e6 g1f3 h7h6 g5e6 d8e7 e1g1 f7e6 d3g6 e8d8 c1f4","Black keeps the position flexible with ...Nd7 and ...Ngf6. White can go for a sharp Ng5 attack."],
+["Caro-Kann Defense","Caro-Kann: Bronstein-Larsen (4...Nf6 5.Nxf6+ gxf6)",10,"e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 g8f6 e4f6 g7f6 c2c3 c8f5 g1f3 e7e6 f1e2 d8c7","Black accepts doubled f-pawns for the bishop pair and open g-file. A fighting, unbalanced line."],
+["Caro-Kann Defense","Caro-Kann: Exchange Variation",6,"e2e4 c7c6 d2d4 d7d5 e4d5 c6d5 f1d3 b8c6 c2c3 g8f6 c1f4 c8g4 d1b3 d8d7 b1d2 e7e6","White trades in the center for a symmetrical pawn structure and easy development."],
+["Caro-Kann Defense","Caro-Kann: Panov-Botvinnik Attack",7,"e2e4 c7c6 d2d4 d7d5 e4d5 c6d5 c2c4 g8f6 b1c3 e7e6 g1f3 f8e7 c4d5 f6d5 f1d3 b8c6 e1g1 e8g8","White creates an isolated queen's pawn position with c4, aiming for active piece play."],
+["Caro-Kann Defense","Caro-Kann: Two Knights (2.Nf3)",5,"e2e4 c7c6 g1f3 d7d5 b1c3 c8g4 h2h3 g4f3 d1f3 e7e6 d2d4 g8f6 c1g5 f8e7","A quieter system where White develops the knights first and keeps d4 in reserve."],
+["Caro-Kann Defense","Caro-Kann: Fantasy Variation (3.f3)",5,"e2e4 c7c6 d2d4 d7d5 f2f3 d5e4 f3e4 e7e5 g1f3 e5d4 f1c4 g8f6 d1e2 f8b4","A gambit-style line where White supports e4 with f3 and aims for quick attacking chances."],
+
+// ---- Queen's Gambit ----
+["Queen's Gambit","QGD: Orthodox Defense",12,"d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 f8e7 e2e3 e8g8 g1f3 b8d7 a1c1 c7c6 f1d3 d5c4 d3c4 f6d5 g5e7 d8e7 e1g1 d5c3 c1c3 e6e5","The classical QGD setup. Black stays compact and prepares the ...e5 break."],
+["Queen's Gambit","QGD: Tartakower Defense",14,"d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 f8e7 e2e3 e8g8 g1f3 h7h6 g5h4 b7b6 c4d5 f6d5 h4e7 d8e7 c3d5 e6d5 f1d3 c8b7 e1g1 b8d7","Black plays ...b6 to fianchetto the bishop and trade pieces. A very solid way to meet the Queen's Gambit."],
+["Queen's Gambit","QGD: Lasker Defense",14,"d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 f8e7 e2e3 e8g8 g1f3 h7h6 g5h4 f6e4 h4e7 d8e7 c4d5 e4c3 b2c3 e6d5 d1b3 f8d8","Black simplifies with ...Ne4 and a series of exchanges to ease the cramped position."],
+["Queen's Gambit","QGD: Exchange Variation",7,"d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c4d5 e6d5 c1g5 c7c6 e2e3 f8e7 f1d3 b8d7 d1c2 e8g8 g1e2 f8e8","White resolves the central tension and aims for a minority attack on the queenside."],
+["Queen's Gambit","QGD: Cambridge Springs",12,"d2d4 d7d5 c2c4 e7e6 b1c3 g8f6 c1g5 b8d7 e2e3 c7c6 g1f3 d8a5 f3d2 f8b4 d1c2 e8g8 f1e2 e6e5","Black pins the c3 knight with ...Qa5 and ...Bb4, setting a trap on the Bg5 line."],
+["Queen's Gambit","Tarrasch Defense",6,"d2d4 d7d5 c2c4 e7e6 b1c3 c7c5 c4d5 e6d5 g1f3 b8c6 g2g3 g8f6 f1g2 f8e7 e1g1 e8g8 c1g5 c5c4","Black accepts an isolated queen's pawn in return for active pieces and open lines."],
+["Queen's Gambit","Queen's Gambit Accepted",4,"d2d4 d7d5 c2c4 d5c4 g1f3 g8f6 e2e3 e7e6 f1c4 c7c5 e1g1 a7a6 d1e2 b7b5 c4b3 c5d4","Black takes the pawn and gives it back later in exchange for easy development and a freeing ...c5."],
+
+// ---- Slav / Semi-Slav ----
+["Slav / Semi-Slav","Slav Defense: Main Line (4...dxc4)",8,"d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 d5c4 a2a4 c8f5 e2e3 e7e6 f1c4 f8b4 e1g1 e8g8 d1e2 b8d7","Black wins the c4 pawn and develops the bishop before playing ...e6. White gets rapid development."],
+["Slav / Semi-Slav","Slav Defense: Exchange Variation",6,"d2d4 d7d5 c2c4 c7c6 c4d5 c6d5 b1c3 g8f6 c1f4 b8c6 e2e3 c8f5 g1f3 e7e6","A symmetrical, calm structure. White plays for a small edge with simple development."],
+["Slav / Semi-Slav","Semi-Slav: Meran Variation",14,"d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 e7e6 e2e3 b8d7 f1d3 d5c4 d3c4 b7b5 c4d3 a7a6 e3e4 c6c5","Black grabs space on the queenside with ...b5 and ...c5. A rich, strategic main line."],
+["Slav / Semi-Slav","Semi-Slav: Anti-Moscow / Botvinnik (5.Bg5)",9,"d2d4 d7d5 c2c4 c7c6 g1f3 g8f6 b1c3 e7e6 c1g5 h7h6 g5h4 d5c4 e2e4 g7g5 h4g3 b7b5 f1e2 c8b7","Sharp and double-edged. Both sides fight for the center with wild pawn moves."],
+
+// ---- Indian Defenses ----
+["Indian Defenses","Nimzo-Indian: Rubinstein (4.e3)",7,"d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 e2e3 e8g8 f1d3 d7d5 g1f3 c7c5 e1g1 b8c6 a2a3 b4c3 b2c3","The most popular system. White develops naturally and Black fights the center with ...d5 and ...c5."],
+["Indian Defenses","Nimzo-Indian: Classical (4.Qc2)",7,"d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 d1c2 e8g8 a2a3 b4c3 c2c3 b7b6 c1g5 c8b7 e2e3 d7d6","White avoids doubled pawns by recapturing with the queen and keeps the bishop pair."],
+["Indian Defenses","Nimzo-Indian: Sämisch (4.a3)",9,"d2d4 g8f6 c2c4 e7e6 b1c3 f8b4 a2a3 b4c3 b2c3 c7c5 e2e3 b8c6 f1d3 e8g8 g1e2 b7b6 e3e4 f6e8","White gets the bishop pair at the cost of doubled c-pawns. Both sides play for the center."],
+["Indian Defenses","Queen's Indian Defense: Petrosian (4.a3)",6,"d2d4 g8f6 c2c4 e7e6 g1f3 b7b6 a2a3 c8b7 b1c3 d7d5 c4d5 f6d5 d1c2 d5c3 c2c3 f8e7","White prevents ...Bb4 and keeps flexible. A positional struggle for control of e4."],
+["Indian Defenses","King's Indian: Classical Variation",12,"d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 g1f3 e8g8 f1e2 e7e5 e1g1 b8c6 d4d5 c6e7 f3e1 f6d7 c1e3 f7f5","White builds a big center and Black counterattacks with ...e5 and a kingside pawn storm."],
+["Indian Defenses","King's Indian: Sämisch Variation",9,"d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f3 e8g8 c1e3 e7e5 g1e2 c7c6 d1d2 b8d7","White supports the center with f3 and prepares queenside castling and a kingside attack."],
+["Indian Defenses","King's Indian: Fianchetto Variation",7,"d2d4 g8f6 c2c4 g7g6 g2g3 f8g7 f1g2 e8g8 b1c3 d7d6 g1f3 b8d7 e1g1 e7e5 e2e4 c7c6","A quieter system with White's bishop on g2 and a long-term fight for the center."],
+["Indian Defenses","King's Indian: Four Pawns Attack",9,"d2d4 g8f6 c2c4 g7g6 b1c3 f8g7 e2e4 d7d6 f2f4 e8g8 g1f3 c7c5 d4d5 e7e6 f1d3 e6d5 c4d5 b7b5","White builds an enormous pawn center. Black must strike back quickly or get run over."],
+["Indian Defenses","Grünfeld: Exchange Variation",12,"d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 c4d5 f6d5 e2e4 d5c3 b2c3 f8g7 g1f3 c7c5 c1e3 d8a5 d1d2 e8g8 a1c1 b8c6","White builds a big center and Black attacks it with pieces and ...c5."],
+["Indian Defenses","Grünfeld: Russian System",9,"d2d4 g8f6 c2c4 g7g6 b1c3 d7d5 g1f3 f8g7 d1b3 d5c4 b3c4 e8g8 e2e4 c8g4 c1e3 f6d7 c4b3 d7b6","White puts the queen on b3 and keeps flexible development. Black hits the center from the side."],
+["Indian Defenses","Modern Benoni",10,"d2d4 g8f6 c2c4 c7c5 d4d5 e7e6 b1c3 e6d5 c4d5 d7d6 e2e4 g7g6 g1f3 f8g7 f1e2 e8g8 e1g1 f8e8","Black gives White a space edge for dynamic piece play and a queenside pawn majority."],
+["Indian Defenses","Benko Gambit",6,"d2d4 g8f6 c2c4 c7c5 d4d5 b7b5 c4b5 a7a6 b5a6 c8a6 b1c3 d7d6 e2e4 a6f1 e1f1 g7g6","Black sacrifices a pawn for lasting pressure on the a- and b-files."],
+["Indian Defenses","Budapest Gambit",4,"d2d4 g8f6 c2c4 e7e5 d4e5 f6g4 c1f4 b8c6 g1f3 f8b4 b1d2 d8e7 a2a3 g4e5","Black offers the e-pawn for quick piece activity and tactical chances."],
+
+// ---- Dutch Defense ----
+["Dutch Defense","Dutch: Leningrad Variation",6,"d2d4 f7f5 g2g3 g8f6 f1g2 g7g6 g1f3 f8g7 e1g1 e8g8 c2c4 d7d6 b1c3 d8e8","Black plays a King's Indian setup against White's fianchetto. Aggressive kingside play."],
+["Dutch Defense","Dutch: Stonewall Variation",12,"d2d4 f7f5 g2g3 g8f6 f1g2 e7e6 g1f3 f8e7 e1g1 e8g8 c2c4 d7d5 b1c3 c7c6 d1c2 d8e8","Black builds a wall of pawns on c6, d5, e6 and f5 and aims for a kingside attack."],
+
+// ---- Sicilian Defense ----
+["Sicilian Defense","Sicilian: Najdorf Variation",10,"e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 a7a6 c1e3 e7e5 d4b3 c8e6 f2f3 f8e7 d1d2 e8g8 e1c1 b8d7","The most famous Sicilian. ...a6 keeps options open and prepares ...e5 or ...b5."],
+["Sicilian Defense","Sicilian: Dragon Variation",10,"e2e4 c7c5 g1f3 d7d6 d2d4 c5d4 f3d4 g8f6 b1c3 g7g6 c1e3 f8g7 f2f3 e8g8 d1d2 b8c6 f1c4 c8d7 e1c1 a8c8","Black fianchettoes the bishop for a long diagonal. White castles queenside and attacks on the kingside."],
+["Sicilian Defense","Sicilian: Scheveningen Variation",10,"e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 g8f6 b1c3 d7d6 f1e2 f8e7 e1g1 e8g8 f2f4 b8c6 c1e3 c8d7","Black builds a compact small-center setup with ...e6 and ...d6."],
+["Sicilian Defense","Sicilian: Taimanov Variation",8,"e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 b8c6 b1c3 d8c7 c1e3 a7a6 d1d2 g8f6 e1c1 f8b4","Flexible and tricky. Black keeps the queen and pieces ready for several pawn breaks."],
+["Sicilian Defense","Sicilian: Kan Variation",8,"e2e4 c7c5 g1f3 e7e6 d2d4 c5d4 f3d4 a7a6 f1d3 g8f6 e1g1 d8c7 d1e2 d7d6 c2c4 b8d7","Black plays ...a6 early and keeps all options open. Subtle and strategic."],
+["Sicilian Defense","Sicilian: Sveshnikov Variation",10,"e2e4 c7c5 g1f3 b8c6 d2d4 c5d4 f3d4 g8f6 b1c3 e7e5 d4b5 d7d6 c1g5 a7a6 b5a3 b7b5 g5f6 g7f6 c3d5 f6f5","Black accepts a hole on d5 and a backward d-pawn for activity. Sharp and well studied."],
+["Sicilian Defense","Sicilian: Alapin Variation (2.c3)",3,"e2e4 c7c5 c2c3 g8f6 e4e5 f6d5 d2d4 c5d4 g1f3 b8c6 c3d4 d7d6 f1c4 d5b6 c4b3 d6e5 f3e5 c6e5 d4e5 d8d1 e1d1","White prepares d4 to build a big center and avoids the sharp open Sicilian."],
+["Sicilian Defense","Sicilian: Closed Variation",3,"e2e4 c7c5 b1c3 b8c6 g2g3 g7g6 f1g2 f8g7 d2d3 d7d6 c1e3 g8f6 d1d2 e8g8 g1e2 c8d7","White avoids the open Sicilian and plays a slower, flexible setup with a kingside fianchetto."],
+["Sicilian Defense","Sicilian: Smith-Morra Gambit",5,"e2e4 c7c5 d2d4 c5d4 c2c3 d4c3 b1c3 b8c6 g1f3 d7d6 f1c4 e7e6 e1g1 g8f6 d1e2 f8e7","White sacrifices a pawn for rapid development and attacking chances."],
+["Sicilian Defense","Sicilian: Rossolimo Variation",5,"e2e4 c7c5 g1f3 b8c6 f1b5 g7g6 b5c6 b7c6 e1g1 f8g7 f1e1 e7e5 c2c3 g8e7 d2d4 e5d4","White pins the knight and often doubles Black's pawns, steering the game away from main-line theory."],
+
+// ---- French Defense ----
+["French Defense","French: Winawer Variation",6,"e2e4 e7e6 d2d4 d7d5 b1c3 f8b4 e4e5 c7c5 a2a3 b4c3 b2c3 g8e7 d1g4 e8g8","Black pins the c3 knight. The pawn structure gets unbalanced and both sides attack."],
+["French Defense","French: Winawer, Poisoned Pawn",13,"e2e4 e7e6 d2d4 d7d5 b1c3 f8b4 e4e5 c7c5 a2a3 b4c3 b2c3 g8e7 d1g4 d8c7 g4g7 h8g8 g7h7 c5d4 g1e2 b8c6 f2f4 c8d7","White grabs the g7 pawn with the queen. Very sharp and heavily analyzed."],
+["French Defense","French: Tarrasch Variation (3.Nd2)",5,"e2e4 e7e6 d2d4 d7d5 b1d2 g8f6 e4e5 f6d7 f1d3 c7c5 c2c3 b8c6 g1e2 c5d4 c3d4 f7f6","White avoids the Winawer pin by developing the knight to d2."],
+["French Defense","French: Advance Variation",5,"e2e4 e7e6 d2d4 d7d5 e4e5 c7c5 c2c3 b8c6 g1f3 d8b6 a2a3 c5c4 b1d2 c8d7 f1e2 g8e7","White gains space with e5. Black attacks the d4 pawn with ...c5, ...Nc6 and ...Qb6."],
+["French Defense","French: Exchange Variation",6,"e2e4 e7e6 d2d4 d7d5 e4d5 e6d5 g1f3 g8f6 f1d3 f8d6 e1g1 e8g8 b1c3 c7c6 c1g5 c8g4","White simplifies the center for a symmetrical structure and an easy game."],
+["French Defense","French: Classical Variation (3...Nf6)",6,"e2e4 e7e6 d2d4 d7d5 b1c3 g8f6 c1g5 f8e7 e4e5 f6d7 g5e7 d8e7 f2f4 e8g8","Black attacks e4 with ...Nf6. White usually pushes e5 and plays for a big center."],
+["French Defense","French: Rubinstein Variation (3...dxe4)",8,"e2e4 e7e6 d2d4 d7d5 b1c3 d5e4 c3e4 b8d7 g1f3 g8f6 e4f6 d7f6 f1d3 c7c5 d1e2 f8e7 e1g1 e8g8","Black releases the central tension early for solid, simple development."],
+["French Defense","French: King's Indian Attack",3,"e2e4 e7e6 d2d3 d7d5 b1d2 g8f6 g1f3 c7c5 g2g3 b8c6 f1g2 f8e7 e1g1 e8g8 f1e1 b7b5","White sets up a flexible system and avoids theory. Good for players who prefer strategy over memorization."],
+
+// ---- Scandinavian, Pirc, Alekhine, Modern ----
+["Scandinavian, Pirc & Others","Scandinavian: Main Line (3...Qa5)",6,"e2e4 d7d5 e4d5 d8d5 b1c3 d5a5 d2d4 g8f6 g1f3 c7c6 f1c4 c8f5","Black keeps the queen active on a5 and develops quickly. The most common Scandinavian."],
+["Scandinavian, Pirc & Others","Scandinavian: Modern (2...Nf6)",4,"e2e4 d7d5 e4d5 g8f6 d2d4 f6d5 g1f3 g7g6 f1e2 f8g7 e1g1 e8g8 c2c4 d5b6","Black recaptures with the knight and avoids early queen moves, giving up the pawn only briefly."],
+["Scandinavian, Pirc & Others","Scandinavian: Portuguese Variation",6,"e2e4 d7d5 e4d5 g8f6 d2d4 c8g4 f2f3 g4f5 f1b5 b8d7 c2c4 c7c6 d5c6 b7c6","Black hits the queen with ...Bg4 right away to gain time. A sharp, less common line."],
+["Scandinavian, Pirc & Others","Scandinavian: 3...Qd6",6,"e2e4 d7d5 e4d5 d8d5 b1c3 d5d6 d2d4 g8f6 g1f3 c7c6 f1c4 c8f5","Black retreats the queen to d6, staying more compact and safe from tempo-gaining attacks."],
+["Scandinavian, Pirc & Others","Pirc Defense: Austrian Attack",7,"e2e4 d7d6 d2d4 g8f6 b1c3 g7g6 f2f4 f8g7 g1f3 e8g8 f1d3 b8a6 e1g1 c7c5","White builds an aggressive center with f4. Black counterattacks against it."],
+["Scandinavian, Pirc & Others","Pirc Defense: Classical Variation",11,"e2e4 d7d6 d2d4 g8f6 b1c3 g7g6 g1f3 f8g7 f1e2 e8g8 e1g1 c7c6 a2a4 b8d7","A calm, flexible setup. Black waits and attacks White's center later."],
+["Scandinavian, Pirc & Others","Alekhine's Defense",7,"e2e4 g8f6 e4e5 f6d5 d2d4 d7d6 g1f3 c8g4 f1e2 e7e6 e1g1 f8e7 c2c4 d5b6","Black invites White's pawns forward in order to attack them later."],
+["Scandinavian, Pirc & Others","Modern Defense",4,"e2e4 g7g6 d2d4 f8g7 b1c3 d7d6 f2f4 g8f6 g1f3 e8g8 f1d3 b8c6","Black delays developing the knights and aims to undermine White's center from the flanks."],
+
+// ---- Open Games (1.e4 e5) ----
+["Open Games (1.e4 e5)","Italian: Giuoco Piano, Main Line (c3 & d4)",8,"e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c2c3 g8f6 d2d4 e5d4 c3d4 c5b4 b1c3 f6e4 e1g1 b4c3 d4d5 c3f6","White builds a strong center with c3 and d4, and Black tries to disrupt it with active pieces."],
+["Open Games (1.e4 e5)","Italian: Giuoco Pianissimo",9,"e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c2c3 g8f6 d2d3 d7d6 e1g1 e8g8 b2b4 c5b6 a2a4 a7a6 c1g5 h7h6","A slower, quieter version of the Italian. Both sides develop and maneuver."],
+["Open Games (1.e4 e5)","Italian: Evans Gambit",7,"e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 b2b4 c5b4 c2c3 b4a5 d2d4 e5d4 e1g1 d4c3 d1b3 d8f6 e4e5 f6g6","White sacrifices a pawn for a big center and rapid development. A favorite of attacking players."],
+["Open Games (1.e4 e5)","Italian: Two Knights Defense",6,"e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 f3g5 d7d5 e4d5 c6a5 c4b5 c7c6 d5c6 b7c6 b5e2 h7h6 g5f3 e5e4 f3e5 f8d6","Black counterattacks immediately in the center. White's Ng5 leads to very sharp play."],
+["Open Games (1.e4 e5)","Italian: Fried Liver Attack",11,"e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 f3g5 d7d5 e4d5 f6d5 g5f7 e8f7 d1f3 f7e6 b1c3 c6b4 f3e4 c7c6 a2a3 b4a6 d2d4 a6c7","White sacrifices a knight to drag the king into the open. One of the most famous attacking lines."],
+["Open Games (1.e4 e5)","Scotch Game: Classical (4...Bc5)",8,"e2e4 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4 f8c5 c1e3 d8f6 c2c3 g8e7 f1c4 f6g6","Black pins and pressures the d4 knight with ...Bc5 and ...Qf6."],
+["Open Games (1.e4 e5)","Scotch Game: Mieses Variation",8,"e2e4 e7e5 g1f3 b8c6 d2d4 e5d4 f3d4 g8f6 d4c6 b7c6 e4e5 d8e7 d1e2 f6d5 c2c4 c8a6","White plays e5 to kick the knight and gains space, while Black gets open lines for the pieces."],
+["Open Games (1.e4 e5)","Four Knights: Spanish Variation",7,"e2e4 e7e5 g1f3 b8c6 b1c3 g8f6 f1b5 f8b4 e1g1 e8g8 d2d3 d7d6 c1g5 b4c3 b2c3 d8e7 f1e1 c6d8 d3d4 d8e6","A solid symmetrical opening where both sides pin the knights. Very classical."],
+["Open Games (1.e4 e5)","Ruy Lopez: Berlin Defense",8,"e2e4 e7e5 g1f3 b8c6 f1b5 g8f6 e1g1 f6e4 d2d4 e4d6 b5c6 d7c6 d4e5 d6f5 d1d8 e8d8 b1c3 d8e8 h2h3 h7h5","The famous Berlin Wall. Queens come off early and Black gets a very solid endgame."],
+["Open Games (1.e4 e5)","Ruy Lopez: Closed (Chigorin)",16,"e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5a4 g8f6 e1g1 f8e7 f1e1 b7b5 a4b3 d7d6 c2c3 e8g8 h2h3 c6a5 b3c2 c7c5 d2d4 d8c7","The classic main line. White builds a big center and Black counters with ...Na5 and ...c5."],
+["Open Games (1.e4 e5)","Ruy Lopez: Exchange Variation",8,"e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5c6 d7c6 e1g1 f7f6 d2d4 c8g4 d4e5 d8d1 f1d1 f6e5","White damages Black's pawns and heads for an endgame where the kingside pawn majority tells."],
+["Open Games (1.e4 e5)","Ruy Lopez: Open Variation",10,"e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5a4 g8f6 e1g1 f6e4 d2d4 b7b5 a4b3 d7d5 d4e5 c8e6 b1d2 e4c5 c2c3 f8e7 b3c2 e6g4","Black grabs the e4 pawn for open lines and active pieces. A sharp alternative to the closed Ruy."],
+["Open Games (1.e4 e5)","Ruy Lopez: Marshall Attack",16,"e2e4 e7e5 g1f3 b8c6 f1b5 a7a6 b5a4 g8f6 e1g1 f8e7 f1e1 b7b5 a4b3 e8g8 c2c3 d7d5 e4d5 f6d5 f3e5 c6e5 e1e5 c7c6 d2d4 e7d6 e5e1 d8h4 g2g3 h4h3","Black sacrifices a pawn for a long-lasting kingside attack. Famous and heavily analyzed."],
+["Open Games (1.e4 e5)","Petroff Defense",4,"e2e4 e7e5 g1f3 g8f6 f3e5 d7d6 e5f3 f6e4 d2d4 d6d5 f1d3 f8e7 e1g1 b8c6 c2c4 c6b4 d3e2 e8g8 b1c3 c8e6","Black mirrors White and counterattacks e4. Extremely solid and hard to beat."],
+["Open Games (1.e4 e5)","Philidor Defense",5,"e2e4 e7e5 g1f3 d7d6 d2d4 g8f6 b1c3 b8d7 f1c4 f8e7 e1g1 e8g8 d1e2 c7c6 a2a4 e5d4","Black defends e5 with ...d6 and builds a compact but slightly passive position."],
+["Open Games (1.e4 e5)","Vienna Game",3,"e2e4 e7e5 b1c3 g8f6 f1c4 f6e4 d1h5 e4d6 c4b3 b8c6 c3b5 g7g6 h5f3 f7f5 f3d5 d8e7 b5c7 e8d8 c7a8 b7b6","White develops the knight before the f-pawn, keeping the option to play f4 later."],
+["Open Games (1.e4 e5)","King's Gambit Accepted",4,"e2e4 e7e5 f2f4 e5f4 g1f3 g7g5 h2h4 g5g4 f3e5 g8f6 f1c4 d7d5 e4d5 f8d6","White offers a pawn for fast development and attack on the f-file. Wild and romantic."],
+["Open Games (1.e4 e5)","King's Gambit: Falkbeer Countergambit",4,"e2e4 e7e5 f2f4 d7d5 e4d5 e5e4 d2d3 g8f6 d3e4 f6e4 g1f3 f8c5 d1e2 c8f5 b1c3 d8e7 c3e4 f5e4","Black refuses the pawn and strikes back in the center at once."],
+["Open Games (1.e4 e5)","Bishop's Opening",3,"e2e4 e7e5 f1c4 g8f6 d2d3 c7c6 g1f3 d7d5 c4b3 f8d6 e1g1 e8g8","White aims the bishop at f7 and keeps the structure flexible."],
+["Open Games (1.e4 e5)","Ponziani Opening",5,"e2e4 e7e5 g1f3 b8c6 c2c3 d7d5 d1a4 g8f6 f3e5 f8d6 e5c6 b7c6 e4d5 f6d5","White prepares d4 with c3. Black's ...d5 gives an active game."],
+
+// ---- Flank openings & systems ----
+["Flank Openings & Systems","English: Symmetrical Variation",2,"c2c4 c7c5 g1f3 g8f6 b1c3 b8c6 d2d4 c5d4 f3d4 e7e6 g2g3 d8b6 d4b3 f8b4","A flexible, strategic fight with a symmetrical pawn structure."],
+["Flank Openings & Systems","English: Reversed Sicilian (1...e5)",2,"c2c4 e7e5 b1c3 g8f6 g1f3 b8c6 e2e4 f8b4 d2d3 d7d6 c1d2 e8g8 f1e2 c8g4","Like a Sicilian with colors reversed. White gets an extra tempo and plays for a small edge."],
+["Flank Openings & Systems","Réti Opening",3,"g1f3 d7d5 c2c4 e7e6 g2g3 g8f6 f1g2 f8e7 e1g1 e8g8 b2b3 b7b6 c1b2 c8b7","A hypermodern system. White controls the center from a distance with fianchettoed bishops."],
+["Flank Openings & Systems","Bird's Opening",1,"f2f4 d7d5 g1f3 g8f6 e2e3 g7g6 f1e2 f8g7 e1g1 e8g8 d2d3 c7c5","White controls e5 with f4. An offbeat opening that avoids main-line theory."],
+["Flank Openings & Systems","King's Indian Attack",3,"g1f3 d7d5 g2g3 g8f6 f1g2 c7c5 e1g1 b8c6 d2d3 e7e5 b1d2 f8e7 e2e4 e8g8","White uses a setup similar to the King's Indian Defense with colors reversed."],
+["Flank Openings & Systems","Catalan Opening",5,"d2d4 g8f6 c2c4 e7e6 g2g3 d7d5 f1g2 f8e7 g1f3 e8g8 e1g1 d5c4 d1c2 a7a6 c2c4 b7b5 c4c2 c8b7","White fianchettoes the bishop on g2 to pressure the long diagonal and the c4 pawn."],
+["Flank Openings & Systems","Trompowsky Attack",3,"d2d4 g8f6 c1g5 f6e4 g5f4 c7c5 f2f3 d8a5 c2c3 e4f6","White pins the knight early to avoid mainstream theory and often doubles Black's pawns."],
+["Flank Openings & Systems","Torre Attack",5,"d2d4 g8f6 g1f3 e7e6 c1g5 c7c5 e2e3 h7h6 g5h4 d7d6 b1d2 b8c6 c2c3 d8e7","White pins the knight with Bg5 and builds a solid setup with e3 and Nbd2."],
+["Flank Openings & Systems","Colle System",7,"d2d4 d7d5 g1f3 g8f6 e2e3 e7e6 f1d3 c7c5 c2c3 b8c6 b1d2 f8d6 e1g1 e8g8","A simple system with an e4 break. Easy to learn and very flexible."],
+
+// ---- Gambits & trick openings ----
+["Gambits & Trick Openings","Alien Gambit (Caro-Kann, 3.Nd2)",11,"e2e4 c7c6 d2d4 d7d5 b1d2 d5e4 d2e4 g8f6 e4g5 h7h6 g5f7 e8f7 g1f3 c8g4 f3e5 f7g8 e5g4 f6g4 d1g4","White sacrifices a knight on f7 against the Caro-Kann to drag the king out and attack it. Unsound against perfect play, but very dangerous in practice.",ALIEN_NOTES,["e2e4 c7c6 d2d4 d7d5 b1d2 d5e4 d2e4 g8f6 e4g5 h7h6 g5f7 e8f7 g1f3 c8f5 f1c4 e7e6 d1e2","e2e4 c7c6 d2d4 d7d5 b1d2 d5e4 d2e4 g8f6 e4g5 c8f5 f1c4 e7e6 d1e2"]],
+["Gambits & Trick Openings","Alien Gambit (Caro-Kann, 3.Nc3 move order)",11,"e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 g8f6 e4g5 h7h6 g5f7 e8f7 g1f3 c8g4 f3e5 f7g8 e5g4 f6g4 d1g4","The same Alien Gambit idea reached with 3.Nc3 instead of 3.Nd2.",ALIEN_NOTES,["e2e4 c7c6 d2d4 d7d5 b1c3 d5e4 c3e4 g8f6 e4g5 h7h6 g5f7 e8f7 g1f3 c8f5 f1c4 e7e6 d1e2"]],
+["Gambits & Trick Openings","Englund Gambit",2,"d2d4 e7e5 d4e5 b8c6 g1f3 d8e7 c1f4 e7b4 f4d2 b4b2 d2c3 f8b4 d1d2 b4c3 d2c3 b2c3 b1c3","Black sacrifices a pawn at once and sets traps with an early queen sortie. Very risky, but it catches many players off guard."],
+["Gambits & Trick Openings","Halloween Gambit",7,"e2e4 e7e5 g1f3 b8c6 b1c3 g8f6 f3e5 c6e5 d2d4 e5g6 e4e5 f6g8 f1c4","White gives up a knight for a huge pawn center and chases Black's pieces back."],
+["Gambits & Trick Openings","Latvian Gambit",4,"e2e4 e7e5 g1f3 f7f5 f3e5 d8f6 d2d4 d7d6 e5c4 f5e4 b1c3 f6g6","Black counterattacks with ...f5 right away. Wild, double-edged and full of traps."],
+["Gambits & Trick Openings","Jerome Gambit",7,"e2e4 e7e5 g1f3 b8c6 f1c4 f8c5 c4f7 e8f7 f3e5 c6e5 d2d4 c5d4 d1d4 d7d6","White throws pieces at f7 to expose the king. Unsound, but a famous practical trap."],
+["Gambits & Trick Openings","Danish Gambit",5,"e2e4 e7e5 d2d4 e5d4 c2c3 d4c3 f1c4 c3b2 c1b2 d7d5 c4d5 g8f6 d5f7 e8f7 d1d8 f8b4 b1c3","White sacrifices pawns for open lines and two attacking bishops aimed at f7."],
+["Gambits & Trick Openings","Blackmar-Diemer Gambit",9,"d2d4 d7d5 e2e4 d5e4 b1c3 g8f6 f2f3 e4f3 g1f3 c8g4 f1d3 e7e6 c1f4 f8d6","White gives a pawn for quick development and a kingside attack."],
+["Gambits & Trick Openings","Stafford Gambit",6,"e2e4 e7e5 g1f3 g8f6 f3e5 b8c6 e5c6 d7c6 d2d3 f8c5 c1e3 c5e3 f2e3 f6g4 d1d2 d8h4","Black offers a pawn for fast development and tricks against careless players."],
+["Gambits & Trick Openings","Elephant Gambit",4,"e2e4 e7e5 g1f3 d7d5 e4d5 e5e4 d1e2 g8f6","Black strikes in the center immediately and gambits a pawn for activity."],
+["Gambits & Trick Openings","Albin Countergambit",6,"d2d4 d7d5 c2c4 e7e5 d4e5 d5d4 g1f3 b8c6 g2g3 c8e6 f1g2 d8d7","Black answers the Queen's Gambit with a pawn sacrifice and a strong, cramping d4 pawn."],
+["Gambits & Trick Openings","Scotch Gambit",7,"e2e4 e7e5 g1f3 b8c6 d2d4 e5d4 f1c4 g8f6 e4e5 d7d5 c4b5 f6e4 f3d4 c8d7 d4c6 b7c6 b5c6 a8b8","White gives a pawn for quick development and attacking chances."]
+];
+
+VARIATIONS.forEach(v => {
+    BOOK_LINES.push(v[3].split(" "));
+    (v[6] || []).forEach(l => BOOK_LINES.push(l.split(" ")));
+});
+
+function bookMove(uciList, maxPlies) {
+
+    const ply = uciList.length;
+    if (ply >= maxPlies) return null;
+
+    const options = [];
+
+    for (const line of BOOK_LINES) {
+        if (line.length <= ply) continue;
+
+        let match = true;
+        for (let i = 0; i < ply; i++) {
+            if (line[i] !== uciList[i]) { match = false; break; }
+        }
+
+        if (match) options.push(line[ply]);
+    }
+
+    if (options.length === 0) return null;
+    return options[Math.floor(Math.random() * options.length)];
+}
+
+
+/* =========================================================
+   BOT ENTRY POINT (called by the UI / the Web Worker)
+
+   req = {
+     level,           // "cm" | "fm" | "im" | "gm"
+     b, color, st,    // position, side to move, castling/en passant
+     uci,             // moves played so far, e.g. ["e2e4","e7e5"]
+     prior,           // earlier positions [{b, color, st}] (repetitions)
+     half,            // half-move clock (50-move rule)
+     ms               // optional time override
+   }
+   Returns a move object in the same format the UI uses.
+========================================================= */
+
+function chooseBotMove(req) {
+
+    const lvl = BOT_LEVELS[req.level] || BOT_LEVELS.gm;
+    const legal = allLegalMoves(req.color, req.b, req.st);
+
+    if (legal.length === 0) return null;
+    if (legal.length === 1) return legal[0];
+
+    // 0) The opening the player asked the bot to go for. The bot follows
+    //    it only while the game still matches; once the player deviates
+    //    it simply plays on with the normal book / search.
+    if (req.opening && req.opening.length) {
+        const hist = req.uci || [];
+        const ply = hist.length;
+
+        const lines = [req.opening].concat(
+            BOOK_LINES.filter(l => req.opening.every((m, i) => l[i] === m))
+        );
+
+        const options = [];
+        for (const line of lines) {
+            if (line.length > ply && hist.every((m, i) => line[i] === m)) {
+                options.push(line[ply]);
+            }
+        }
+
+        if (options.length) {
+            const pick = options[Math.floor(Math.random() * options.length)];
+            const pf = squareToRC(pick.slice(0, 2));
+            const pt = squareToRC(pick.slice(2, 4));
+
+            const pickHit = legal.find(m =>
+                m.from.r === pf.r && m.from.c === pf.c &&
+                m.to.r === pt.r && m.to.c === pt.c
+            );
+
+            if (pickHit) return pickHit;
+        }
+    }
+
+    // 1) Opening book
+    const book = bookMove(req.uci || [], lvl.bookPlies);
+
+    if (book) {
+        const from = squareToRC(book.slice(0, 2));
+        const to = squareToRC(book.slice(2, 4));
+
+        const hit = legal.find(m =>
+            m.from.r === from.r && m.from.c === from.c &&
+            m.to.r === to.r && m.to.c === to.c
+        );
+
+        if (hit) return hit;
+    }
+
+    // 2) Search
+    const found = Engine.think(req.b, req.color, req.st, {
+        maxDepth: lvl.maxDepth,
+        timeMs: req.ms || lvl.timeMs,
+        margin: lvl.margin,
+        temp: lvl.temp,
+        half: req.half || 0,
+        prior: req.prior || []
+    });
+
+    if (found !== null && found !== undefined) {
+        const from = found & 63, to = (found >> 6) & 63;
+        const promoCode = (found >> 12) & 7;
+
+        const hit = legal.find(m =>
+            m.from.r * 8 + m.from.c === from &&
+            m.to.r * 8 + m.to.c === to
+        );
+
+        if (hit) {
+            return hit.promotion
+                ? { ...hit, promoteTo: promoCode === 2 ? "N" : "Q" }
+                : hit;
+        }
+    }
+
+    return legal[0];
+}
+</script>
+
+<script>
+/*
+    Chess UI.
+
+    The rules + bot engine live in the <script id="core"> block above.
+    That block is injected here (so the UI can use it directly) and is
+    also loaded into a Web Worker so the bot can think without freezing
+    the page.
+*/
+
+const CORE_SRC = document.getElementById("core").textContent;
+
+(function loadCore() {
+    const s = document.createElement("script");
+    s.textContent = CORE_SRC;
+    document.head.appendChild(s);
+})();
+
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const movesEl = document.getElementById("moves");
+const capturedEl = document.getElementById("captured");
+const phaseNameEl = document.getElementById("phaseName");
+const phaseAdviceEl = document.getElementById("phaseAdvice");
+const promoEl = document.getElementById("promo");
+const levelNoteEl = document.getElementById("levelNote");
+const clockEls = {
+    top:    { box: document.getElementById("clockTop"),
+              name: document.getElementById("clockTopName"),
+              time: document.getElementById("clockTopTime") },
+    bottom: { box: document.getElementById("clockBottom"),
+              name: document.getElementById("clockBottomName"),
+              time: document.getElementById("clockBottomTime") }
+};
+
+// \uFE0E forces the plain-text glyph (otherwise ♟ turns into an
+// emoji on iOS / Android).
+const symbols = {
+    K: "♔\uFE0E", Q: "♕\uFE0E", R: "♖\uFE0E", B: "♗\uFE0E", N: "♘\uFE0E", P: "♙\uFE0E",
+    k: "♚\uFE0E", q: "♛\uFE0E", r: "♜\uFE0E", b: "♝\uFE0E", n: "♞\uFE0E", p: "♟\uFE0E"
+};
+
+let board;
+let turn;
+let selected = null;
+let legalMoves = [];
+let history = [];
+let captured = [];
+let castling;
+let enPassant;
+
+// Draw-rule bookkeeping
+let halfmove = 0;        // plies since last pawn move / capture
+let positionKeys = [];   // one key per position reached (for repetition)
+
+// null while the game is running, otherwise {text, score}
+let gameResult = null;
+
+// A result that isn't visible on the board (resignation, agreed draw).
+// computeResult() returns it ahead of everything else.
+let forcedResult = null;
+
+// Which color is displayed at the bottom of the board.
+// Also doubles as "which color the human plays" vs the bot.
+let orientation = "w";
+
+// "human" = local 2-player, "bot" = computer opponent
+let opponentType = "human";
+
+// Which title the bot plays at: "cm" | "fm" | "im" | "gm" (see BOT_LEVELS)
+let botLevel = "gm";
+
+// Opening the bot should steer toward (array of UCI moves) or null = its own choice
+let botOpening = null;
+
+// Bot state
+let botThinking = false;
+let botTimer = null;
+let botRequestId = 0;
+let worker = null;
+
+// Pawn promotion waiting for the player's choice
+let pendingPromotion = null;
+
+// Chess clock
+let clockEnabled = false;
+let clock = { w: 0, b: 0 };     // milliseconds left
+let clockIncrement = 0;         // milliseconds added after each move
+let lastTick = 0;
+let flagged = null;             // color that ran out of time, or null
+let suppressClock = false;      // true while an opening is being loaded
+
+// Premoves: queued moves the player makes while the bot is thinking
+let premoves = [];
+
+// Right-click highlights and arrows (stored in board coordinates so
+// they survive flipping the board)
+const arrowsEl = document.getElementById("arrows");
+const markSquares = new Map();   // "r,c" -> color name
+let markArrows = [];             // { from:{r,c}, to:{r,c}, color }
+let rightStart = null;           // right-button press in progress
+let dragPreview = null;          // arrow being dragged
+
+
+function curState() {
+    return { castling, enPassant };
+}
+
+function algebraic(r, c) {
+    return files[c] + (8 - r);
+}
+
+
+
+/* =========================
+   GAME SETUP
+========================= */
+
+function resetPosition() {
+
+    cancelBot();
+    hidePromotion();
+
+    board = [
+        "rnbqkbnr",
+        "pppppppp",
+        "........",
+        "........",
+        "........",
+        "........",
+        "PPPPPPPP",
+        "RNBQKBNR"
+    ].map(row => row.split(""));
+
+    turn = "w";
+    selected = null;
+    legalMoves = [];
+    history = [];
+    captured = [];
+
+    castling = { K: true, Q: true, k: true, q: true };
+    enPassant = null;
+
+    halfmove = 0;
+    positionKeys = [positionKey()];
+    gameResult = null;
+    forcedResult = null;
+    resetOnlineFlags();
+
+    initClock();
+}
+
+function newGame() {
+    if (isOnline()) return;   // online games use Rematch instead
+    resetPosition();
+    render();
+    scheduleBotMoveIfNeeded();
+}
+
+function positionKey() {
+    return (
+        board.map(row => row.join("")).join("/") +
+        " " + turn +
+        " " + ["K", "Q", "k", "q"].map(k => castling[k] ? k : "").join("") +
+        " " + (enPassant ? enPassant.r + "" + enPassant.c : "-")
+    );
+}
+
+
+/* =========================
+   BOARD ORIENTATION
+========================= */
+
+function onColorChange() {
+    if (isOnline()) return;
+    const select = document.getElementById("colorSelect");
+    orientation = select.value;
+    cancelBot();
+    render();
+    scheduleBotMoveIfNeeded();
+}
+
+function flipBoard() {
+    if (isOnline()) return;   // your color decides which side is at the bottom
+    orientation = orientation === "w" ? "b" : "w";
+
+    const select = document.getElementById("colorSelect");
+    if (select) select.value = orientation;
+
+    cancelBot();
+    render();
+    scheduleBotMoveIfNeeded();
+}
+
+
+/* =========================
+   OPPONENT (HUMAN / BOT)
+========================= */
+
+function onOpponentChange() {
+    const select = document.getElementById("opponentSelect");
+    const wasOnline = opponentType === "online";
+
+    if (select.value === "online") {
+        opponentType = "online";
+        levelNoteEl.textContent = "";
+        document.getElementById("botOpeningBox").hidden = true;
+        cancelBot();
+        stopGuide();
+        teardownOnline();
+        resetPosition();
+        render();
+        return;
+    }
+
+    if (wasOnline) {
+        teardownOnline();
+        resetPosition();
+    }
+
+    if (select.value === "human") {
+        opponentType = "human";
+        levelNoteEl.textContent = "";
+    } else {
+        opponentType = "bot";
+        botLevel = select.value;
+        levelNoteEl.textContent = BOT_LEVELS[botLevel].blurb;
+    }
+
+    document.getElementById("botOpeningBox").hidden = opponentType !== "bot";
+
+    cancelBot();
+    render();
+    scheduleBotMoveIfNeeded();
+}
+
+function onBotOpeningChange() {
+    const v = document.getElementById("botOpeningSelect").value;
+    botOpening = v === "" ? null : OPENINGS[v].moves;
+}
+
+function isBotTurn() {
+    return opponentType === "bot" && turn === opponent(orientation);
+}
+
+// The search runs in a Web Worker so the page never freezes.
+// If workers aren't available (some file:// setups), we fall back
+// to searching on the main thread.
+function initWorker() {
+    try {
+        const glue =
+            "\nself.onmessage = function (e) {" +
+            "  var d = e.data;" +
+            "  self.postMessage({ id: d.id, move: chooseBotMove(d) });" +
+            "};";
+
+        const blob = new Blob([CORE_SRC + glue], { type: "text/javascript" });
+        worker = new Worker(URL.createObjectURL(blob));
+
+        worker.onmessage = e => handleBotMove(e.data.id, e.data.move);
+
+        worker.onerror = () => {
+            // Worker broke: fall back to main-thread search.
+            worker = null;
+            if (botThinking) requestBotMove(botRequestId);
+        };
+    } catch (err) {
+        worker = null;
+    }
+}
+
+function cancelBot() {
+    premoves = [];
+    botRequestId++;          // any in-flight answer is now stale
+    if (botTimer) {
+        clearTimeout(botTimer);
+        botTimer = null;
+    }
+    botThinking = false;
+}
+
+function scheduleBotMoveIfNeeded() {
+
+    if (opponentType !== "bot") return;
+    if (botThinking) return;
+    if (gameResult) return;
+    if (!isBotTurn()) return;
+
+    botThinking = true;
+    const id = ++botRequestId;
+
+    updateStatus();
+
+    // Short pause so the player's own move is visible first.
+    botTimer = setTimeout(() => {
+        botTimer = null;
+        requestBotMove(id);
+    }, 300);
+}
+
+function requestBotMove(id) {
+
+    const payload = {
+        id,
+        level: botLevel,
+        opening: botOpening,
+        b: board,
+        color: turn,
+        st: curState(),
+        half: halfmove,
+        ms: botTimeBudget(),
+        uci: history.map(h => h.uci),
+        // every earlier position, so the bot can spot repetitions
+        prior: history.map(h => ({
+            b: h.board,
+            color: h.turn,
+            st: { castling: h.castling, enPassant: h.enPassant }
+        }))
+    };
+
+    if (worker) {
+        worker.postMessage(payload);
+    } else {
+        // No worker available: search on the main thread instead.
+        setTimeout(() => handleBotMove(id, chooseBotMove(payload)), 0);
+    }
+}
+
+function handleBotMove(id, move) {
+
+    // Ignore answers to requests that were cancelled (undo, new game,
+    // mode switch, ...).
+    if (id !== botRequestId) return;
+
+    botThinking = false;
+
+    if (move && isBotTurn() && !gameResult) {
+        makeMove(move);
+        executePremove();
+    } else {
+        render();
+    }
+}
+
+
+/* =========================
+   CHESS CLOCK
+   Like Lichess, each side's clock only starts once both players
+   have made their first move.
+========================= */
+
+function initClock() {
+
+    const value = document.getElementById("timeSelect").value;
+
+    flagged = null;
+    lastTick = performance.now();
+
+    if (!value || value === "off") {
+        clockEnabled = false;
+        clockIncrement = 0;
+        return;
+    }
+
+    const [mins, inc] = value.split("+").map(Number);
+
+    clockEnabled = true;
+    clock = { w: mins * 60000, b: mins * 60000 };
+    clockIncrement = inc * 1000;
+}
+
+function onTimeChange() {
+    if (isOnline()) {
+        // Only before the first move; the host's choice is sent to the guest.
+        if (online.role !== "guest" && history.length === 0) {
+            resetPosition();
+            render();
+            if (online.role === "host" && online.connected) sendSync();
+        }
+        return;
+    }
+    newGame();
+}
+
+function clockIsRunning() {
+    return clockEnabled &&
+           flagged === null &&
+           !gameResult &&
+           history.length >= 2;
+}
+
+function tickClock() {
+
+    const now = performance.now();
+
+    if (clockIsRunning()) {
+
+        clock[turn] -= now - lastTick;
+
+        // Online, each player's own clock is the authority for their own
+        // time. We flag ourselves instantly, but only flag the opponent
+        // after a short grace period (their move may still be in flight).
+        let expired = clock[turn] <= 0;
+        if (expired && isOnline() && turn !== orientation) {
+            expired = clock[turn] <= -FLAG_GRACE_MS;
+        }
+
+        if (expired) {
+            clock[turn] = 0;
+            flagged = turn;
+            lastTick = now;
+            if (isOnline() && turn === orientation) sendMsg({ t: "flag" });
+            cancelBot();
+            render();
+            return;
+        }
+    }
+
+    lastTick = now;
+    renderClocks();
+}
+
+function formatClock(ms) {
+
+    ms = Math.max(0, ms);
+
+    if (ms < 10000) {
+        return "0:" + (Math.floor(ms / 100) / 10).toFixed(1).padStart(4, "0");
+    }
+
+    const total = Math.ceil(ms / 1000);
+    const mm = Math.floor(total / 60);
+    const ss = total % 60;
+
+    return mm + ":" + String(ss).padStart(2, "0");
+}
+
+function renderClocks() {
+
+    const rows = [
+        [clockEls.top, opponent(orientation)],
+        [clockEls.bottom, orientation]
+    ];
+
+    for (const [els, color] of rows) {
+
+        els.box.hidden = !clockEnabled;
+        if (!clockEnabled) continue;
+
+        const running = clockIsRunning() && turn === color;
+        const low = clock[color] < 10000;
+
+        els.box.className =
+            "clock" +
+            (running ? " active" : "") +
+            (low ? " low" : "");
+
+        let label = color === "w" ? "White" : "Black";
+
+        if (opponentType === "bot" && color === opponent(orientation)) {
+            label += " · " + BOT_LEVELS[botLevel].name;
+        }
+
+        if (isOnline()) {
+            label += color === orientation ? " · You" : " · Opponent";
+        }
+
+        els.name.textContent = label;
+        els.time.textContent = formatClock(clock[color]);
+    }
+}
+
+// How long the bot may think: never more than its level allows, and
+// never so long that it flags itself.
+function botTimeBudget() {
+
+    const cap = BOT_LEVELS[botLevel].timeMs;
+
+    if (!clockEnabled) return cap;
+
+    return Math.max(60, Math.min(cap, clock[turn] / 25 + clockIncrement * 0.7));
+}
+
+// A side can only win on time if it has some way to mate.
+function hasMatingMaterial(color, b) {
+
+    let minors = 0;
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+
+            const p = b[r][c];
+            if (p === "." || colorOf(p) !== color) continue;
+
+            const t = p.toUpperCase();
+
+            if (t === "P" || t === "R" || t === "Q") return true;
+            if (t === "N" || t === "B") minors++;
+        }
+    }
+
+    return minors >= 2;
+}
+
+
+/* =========================
+   RENDER BOARD
+========================= */
+
+function render() {
+
+    gameResult = computeResult();
+
+    boardEl.innerHTML = "";
+
+    const lastMove = history.length
+        ? history[history.length - 1].move
+        : null;
+
+    // Pieces are drawn from the position AFTER any queued premoves
+    const shown = premoves.length ? projectedPosition().b : board;
+    const premoveSquares = new Set();
+    for (const pm of premoves) {
+        premoveSquares.add(pm.from.r + "," + pm.from.c);
+        premoveSquares.add(pm.to.r + "," + pm.to.c);
+    }
+
+    const checkedKing = findKing(turn, board);
+    const currentlyInCheck = checkedKing &&
+        isSquareAttacked(
+            checkedKing.r,
+            checkedKing.c,
+            opponent(turn),
+            board
+        );
+
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+
+            // Map visual position (i, j) to actual board
+            // coordinates (r, c), flipping when orientation
+            // is set to Black-at-bottom.
+            const r = orientation === "w" ? i : 7 - i;
+            const c = orientation === "w" ? j : 7 - j;
+
+            const square = document.createElement("div");
+
+            square.className =
+                "square " +
+                ((r + c) % 2 === 0 ? "light" : "dark");
+
+            square.dataset.r = r;
+            square.dataset.c = c;
+
+            const piece = shown[r][c];
+
+            if (premoveSquares.has(r + "," + c)) {
+                square.classList.add("premove");
+            }
+
+            const mark = markSquares.get(r + "," + c);
+            if (mark) {
+                square.style.setProperty("--l3", markGradient(mark));
+            }
+
+            if (lastMove &&
+                ((lastMove.from.r === r && lastMove.from.c === c) ||
+                 (lastMove.to.r === r && lastMove.to.c === c))) {
+                square.classList.add("lastmove");
+            }
+
+            if (selected &&
+                selected.r === r &&
+                selected.c === c) {
+                square.classList.add("selected");
+            }
+
+            const move = legalMoves.find(m =>
+                m.to.r === r && m.to.c === c
+            );
+
+            if (move) {
+                if (shown[r][c] !== "." || move.enPassant) {
+                    square.classList.add("capture");
+                } else {
+                    square.classList.add("legal");
+                }
+            }
+
+            if (
+                currentlyInCheck &&
+                checkedKing.r === r &&
+                checkedKing.c === c
+            ) {
+                square.classList.add("check");
+            }
+
+            if (piece !== ".") {
+                const pieceEl = document.createElement("span");
+                pieceEl.className =
+                    "piece " +
+                    (isWhite(piece)
+                        ? "white-piece"
+                        : "black-piece");
+
+                pieceEl.textContent = symbols[piece];
+                square.appendChild(pieceEl);
+            }
+
+            // Coordinates (based on visual row/column so
+            // labels stay on the bottom/left edges of the
+            // board no matter the orientation).
+            if (i === 7) {
+                const coord = document.createElement("span");
+                coord.className = "coord file";
+                coord.textContent = files[c];
+                square.appendChild(coord);
+            }
+
+            if (j === 0) {
+                const coord = document.createElement("span");
+                coord.className = "coord rank";
+                coord.textContent = 8 - r;
+                square.appendChild(coord);
+            }
+
+            square.addEventListener("click", () => clickSquare(r, c));
+
+            boardEl.appendChild(square);
+        }
+    }
+
+    updateGuide();
+    drawArrows();
+    updateStatus();
+    updateMoves();
+    updatePhase();
+    updateCaptured();
+    renderClocks();
+    updateOnlineUI();
+}
+
+
+/* =========================
+   CLICK / MOVE HANDLING
+========================= */
+
+function clickSquare(r, c) {
+
+    if (gameResult) return;
+    if (pendingPromotion) return;
+
+    // Online: nothing can be played until an opponent is connected.
+    if (isOnline() && !online.connected) return;
+
+    // While it's the bot's (or online opponent's) turn, clicks set up premoves.
+    if (isBotTurn() || isRemoteTurn()) {
+        premoveClick(r, c);
+        return;
+    }
+
+    const piece = board[r][c];
+
+    // If we already selected something, try to move it.
+    if (selected) {
+
+        const chosenMove = legalMoves.find(m =>
+            m.to.r === r && m.to.c === c
+        );
+
+        if (chosenMove) {
+            if (chosenMove.promotion) {
+                askPromotion(chosenMove);
+            } else {
+                makeMove(chosenMove);
+            }
+            return;
+        }
+
+        // Clicking another friendly piece selects it.
+        if (piece !== "." && colorOf(piece) === turn) {
+            selectPiece(r, c);
+            return;
+        }
+
+        selected = null;
+        legalMoves = [];
+        render();
+        return;
+    }
+
+    // Select own piece.
+    if (piece !== "." && colorOf(piece) === turn) {
+        selectPiece(r, c);
+    }
+}
+
+function selectPiece(r, c) {
+    selected = {r, c};
+    legalMoves = getLegalMoves(r, c, board, turn, curState());
+    render();
+}
+
+
+/* =========================
+   PROMOTION PICKER
+========================= */
+
+function askPromotion(move) {
+
+    pendingPromotion = move;
+    promoEl.innerHTML = "";
+
+    const box = document.createElement("div");
+    box.className = "promo-box";
+
+    const label = document.createElement("div");
+    label.className = "promo-label";
+    label.textContent = "Promote to:";
+    box.appendChild(label);
+
+    const row = document.createElement("div");
+    row.className = "promo-row";
+
+    const names = { Q: "Queen", R: "Rook", B: "Bishop", N: "Knight" };
+
+    ["Q", "R", "B", "N"].forEach(type => {
+
+        const btn = document.createElement("button");
+        btn.className = "promo-choice";
+        btn.title = names[type];
+
+        const span = document.createElement("span");
+        span.className =
+            "piece " + (turn === "w" ? "white-piece" : "black-piece");
+        span.textContent =
+            symbols[turn === "w" ? type : type.toLowerCase()];
+
+        btn.appendChild(span);
+
+        btn.addEventListener("click", () => {
+            const chosen = { ...pendingPromotion, promoteTo: type };
+            hidePromotion();
+            makeMove(chosen);
+        });
+
+        row.appendChild(btn);
+    });
+
+    box.appendChild(row);
+    promoEl.appendChild(box);
+    promoEl.hidden = false;
+}
+
+function hidePromotion() {
+    pendingPromotion = null;
+    promoEl.hidden = true;
+    promoEl.innerHTML = "";
+}
+
+// Clicking the dark backdrop cancels the promotion.
+promoEl.addEventListener("click", e => {
+    if (e.target === promoEl) hidePromotion();
+});
+
+
+/* =========================
+   MAKING MOVES
+========================= */
+
+// Applies a move to the game state (no rendering).
+function commitMove(move, remoteClockMs) {
+
+    const stBefore = curState();
+    const boardBefore = cloneBoard(board);
+    const colorBefore = turn;
+
+    const piece = boardBefore[move.from.r][move.from.c];
+    const target = boardBefore[move.to.r][move.to.c];
+
+    const stAfter = nextState(stBefore, boardBefore, move);
+
+    // Clock: charge the mover for their thinking time, then add the
+    // increment. (Snapshot first so undo can give the time back.)
+    let clockSnapshot = null;
+
+    if (clockEnabled && !suppressClock) {
+
+        const now = performance.now();
+        const wasRunning = flagged === null && history.length >= 2;
+
+        clockSnapshot = { ...clock };
+
+        if (wasRunning && typeof remoteClockMs === "number") {
+            // Online: the opponent's own clock (already including their
+            // increment) is the authority for their time.
+            clock[colorBefore] = Math.max(1, remoteClockMs);
+        } else if (wasRunning) {
+            clock[colorBefore] -= now - lastTick;
+
+            if (clock[colorBefore] <= 0) {
+                clock[colorBefore] = 0;
+                flagged = colorBefore;
+            } else {
+                clock[colorBefore] += clockIncrement;
+            }
+        }
+
+        lastTick = now;
+    }
+
+    const boardAfter = cloneBoard(boardBefore);
+    applyMoveToBoard(boardAfter, move);
+
+    // Notation needs the position before AND after the move.
+    const san = notation(
+        move, boardBefore, boardAfter, colorBefore, stBefore, stAfter
+    );
+
+    // Snapshot for undo (+ the move text for the history panel).
+    history.push({
+        board: boardBefore,
+        turn: colorBefore,
+        castling: { ...castling },
+        enPassant,
+        captured: [...captured],
+        halfmove,
+        san,
+        clock: clockSnapshot,
+        move: { from: { ...move.from }, to: { ...move.to } },
+        uci: algebraic(move.from.r, move.from.c) +
+             algebraic(move.to.r, move.to.c) +
+             (move.promotion ? (move.promoteTo || "Q").toLowerCase() : "")
+    });
+
+    let wasCapture = false;
+
+    if (target !== ".") {
+        captured.push(target);
+        wasCapture = true;
+    }
+
+    if (move.enPassant) {
+        const capturedRow =
+            piece === "P" ? move.to.r + 1 : move.to.r - 1;
+        captured.push(boardBefore[capturedRow][move.to.c]);
+        wasCapture = true;
+    }
+
+    halfmove =
+        (piece.toUpperCase() === "P" || wasCapture) ? 0 : halfmove + 1;
+
+    board = boardAfter;
+    castling = stAfter.castling;
+    enPassant = stAfter.enPassant;
+    turn = opponent(turn);
+
+    selected = null;
+    legalMoves = [];
+
+    // Arrows and highlights vanish once a move is played
+    markSquares.clear();
+    markArrows = [];
+
+    positionKeys.push(positionKey());
+}
+
+// opts.remote: the move came from the online opponent (don't send it back).
+// opts.ms: the opponent's remaining clock time after that move.
+function makeMove(move, opts) {
+
+    const remote = !!(opts && opts.remote);
+
+    commitMove(move, opts && opts.ms);
+
+    if (isOnline()) {
+        online.drawMine = false;
+        online.drawTheirs = false;
+
+        if (!remote) {
+            sendMsg({
+                t: "move",
+                uci: history[history.length - 1].uci,
+                ply: history.length - 1,
+                ms: clockEnabled ? Math.round(clock[opponent(turn)]) : null
+            });
+        }
+    }
+
+    render();
+    scheduleBotMoveIfNeeded();
+}
+
+
+/* =========================
+   ALGEBRAIC NOTATION
+========================= */
+
+function notation(move, boardBefore, boardAfter, color, stBefore, stAfter) {
+
+    const piece =
+        boardBefore[move.from.r][move.from.c];
+
+    const target =
+        boardBefore[move.to.r][move.to.c];
+
+    // Castling
+    if (move.castle === "K" || move.castle === "k") {
+        return addCheckSuffix("O-O", boardAfter, opponent(color), stAfter);
+    }
+
+    if (move.castle === "Q" || move.castle === "q") {
+        return addCheckSuffix("O-O-O", boardAfter, opponent(color), stAfter);
+    }
+
+    const type = piece.toUpperCase();
+    const isCapture =
+        target !== "." || move.enPassant;
+
+    let result = "";
+
+    if (type === "P") {
+
+        if (isCapture) {
+            result += files[move.from.c];
+        }
+
+    } else {
+
+        result += type;
+
+        // Disambiguation: other pieces of the same kind that could
+        // also move to this square (i.e. from a DIFFERENT origin).
+        const otherMoves = allLegalMoves(color, boardBefore, stBefore)
+            .filter(m =>
+                (m.from.r !== move.from.r ||
+                 m.from.c !== move.from.c) &&
+                m.to.r === move.to.r &&
+                m.to.c === move.to.c &&
+                boardBefore[m.from.r][m.from.c] === piece
+            );
+
+        if (otherMoves.length > 0) {
+
+            const sameFile = otherMoves.some(
+                m => m.from.c === move.from.c
+            );
+
+            const sameRank = otherMoves.some(
+                m => m.from.r === move.from.r
+            );
+
+            if (!sameFile) {
+                result += files[move.from.c];
+            } else if (!sameRank) {
+                result += (8 - move.from.r);
+            } else {
+                result += algebraic(
+                    move.from.r,
+                    move.from.c
+                );
+            }
+        }
+    }
+
+    if (isCapture) result += "x";
+
+    result += algebraic(move.to.r, move.to.c);
+
+    // Promotion
+    if (move.promotion) {
+        result += "=" + (move.promoteTo || "Q");
+    }
+
+    return addCheckSuffix(
+        result,
+        boardAfter,
+        opponent(color),
+        stAfter
+    );
+}
+
+function addCheckSuffix(text, resultingBoard, defenderColor, stAfter) {
+
+    const king = findKing(defenderColor, resultingBoard);
+
+    if (!king) return text;
+
+    const inCheck = isSquareAttacked(
+        king.r,
+        king.c,
+        opponent(defenderColor),
+        resultingBoard
+    );
+
+    if (!inCheck) return text;
+
+    const replies = allLegalMoves(
+        defenderColor,
+        resultingBoard,
+        stAfter
+    );
+
+    return text + (replies.length === 0 ? "#" : "+");
+}
+
+
+/* =========================
+   MOVE HISTORY PANEL
+========================= */
+
+function updateMoves() {
+
+    movesEl.innerHTML = "";
+
+    // history[0] = White's 1st move, history[1] = Black's 1st move, ...
+    for (let i = 0; i < history.length; i += 2) {
+
+        const row = document.createElement("div");
+        row.className = "move-row";
+
+        const number = document.createElement("span");
+        number.className = "move-number";
+        number.textContent = (i / 2 + 1) + ".";
+
+        const white = document.createElement("span");
+        white.className = "white-move";
+        white.textContent = history[i].san;
+
+        const black = document.createElement("span");
+        black.className = "black-move";
+        black.textContent = history[i + 1] ? history[i + 1].san : "";
+
+        row.appendChild(number);
+        row.appendChild(white);
+        row.appendChild(black);
+
+        movesEl.appendChild(row);
+    }
+
+    // Final result line (1-0, 0-1, 1/2-1/2)
+    if (gameResult) {
+        const resultRow = document.createElement("div");
+        resultRow.className = "move-result";
+        resultRow.textContent = gameResult.score;
+        movesEl.appendChild(resultRow);
+    }
+
+    movesEl.scrollTop = movesEl.scrollHeight;
+}
+
+
+/* =========================
+   UNDO
+========================= */
+
+function popPly() {
+
+    const previous = history.pop();
+
+    board = cloneBoard(previous.board);
+    turn = previous.turn;
+    castling = { ...previous.castling };
+    enPassant = previous.enPassant;
+    captured = [...previous.captured];
+    halfmove = previous.halfmove;
+
+    positionKeys.pop();
+
+    // Give back the time (and clear a timeout)
+    if (clockEnabled && previous.clock) clock = { ...previous.clock };
+    flagged = null;
+    lastTick = performance.now();
+}
+
+function undoMove() {
+
+    if (isOnline()) return;
+    if (history.length === 0) return;
+
+    cancelBot();
+    hidePromotion();
+
+    popPly();
+
+    // Against the bot, take back the bot's reply too so it's the
+    // human's turn again (otherwise the player would be locked out).
+    if (isBotTurn() && history.length > 0) {
+        popPly();
+    }
+
+    selected = null;
+    legalMoves = [];
+
+    render();
+    scheduleBotMoveIfNeeded();
+}
+
+
+/* =========================
+   GAME STATUS / RESULT
+========================= */
+
+function insufficientMaterial(b) {
+
+    const minors = [];
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+
+            const p = b[r][c];
+            if (p === "." || p.toUpperCase() === "K") continue;
+
+            const t = p.toUpperCase();
+
+            // Any pawn, rook or queen means mate is still possible.
+            if (t === "P" || t === "R" || t === "Q") return false;
+
+            minors.push({ type: t, shade: (r + c) % 2 });
+        }
+    }
+
+    // K vs K, or K + single minor piece vs K
+    if (minors.length <= 1) return true;
+
+    // Only bishops, all on the same color squares
+    if (
+        minors.every(m => m.type === "B") &&
+        minors.every(m => m.shade === minors[0].shade)
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+function computeResult() {
+
+    if (forcedResult) return forcedResult;
+
+    if (flagged !== null) {
+
+        const winner = opponent(flagged);
+
+        if (!hasMatingMaterial(winner, board)) {
+            return {
+                text: "Draw — timeout vs insufficient material",
+                score: "1/2-1/2"
+            };
+        }
+
+        return winner === "w"
+            ? { text: "Time out — White wins", score: "1-0" }
+            : { text: "Time out — Black wins", score: "0-1" };
+    }
+
+    const moves = allLegalMoves(turn, board, curState());
+
+    if (moves.length === 0) {
+
+        const king = findKing(turn, board);
+        const inCheck = king &&
+            isSquareAttacked(king.r, king.c, opponent(turn), board);
+
+        if (inCheck) {
+            return turn === "w"
+                ? { text: "Checkmate — Black wins", score: "0-1" }
+                : { text: "Checkmate — White wins", score: "1-0" };
+        }
+
+        return { text: "Stalemate — Draw", score: "1/2-1/2" };
+    }
+
+    if (insufficientMaterial(board)) {
+        return { text: "Draw — insufficient material", score: "1/2-1/2" };
+    }
+
+    if (halfmove >= 100) {
+        return { text: "Draw — 50-move rule", score: "1/2-1/2" };
+    }
+
+    const currentKey = positionKeys[positionKeys.length - 1];
+    const repeats = positionKeys.filter(k => k === currentKey).length;
+
+    if (repeats >= 3) {
+        return { text: "Draw — threefold repetition", score: "1/2-1/2" };
+    }
+
+    return null;
+}
+
+function updateStatus() {
+
+    if (gameResult) {
+        statusEl.textContent = gameResult.text;
+        return;
+    }
+
+    if (isOnline() && !online.connected) {
+        statusEl.textContent = online.role === null
+            ? "Online 1v1 — create or join a game"
+            : (online.status || "Connecting...");
+        return;
+    }
+
+    const name = turn === "w" ? "White" : "Black";
+
+    if (botThinking) {
+        statusEl.textContent =
+            name + " (" + BOT_LEVELS[botLevel].name + ") is thinking...";
+        return;
+    }
+
+    const king = findKing(turn, board);
+
+    const inCheck =
+        king &&
+        isSquareAttacked(
+            king.r,
+            king.c,
+            opponent(turn),
+            board
+        );
+
+    statusEl.textContent =
+        name + " to move" + (inCheck ? " — CHECK" : "") +
+        (isOnline() ? (turn === orientation ? " (your turn)" : " (opponent)") : "");
+}
+
+
+/* =========================
+   STRATEGY PHASE
+========================= */
+
+function updatePhase() {
+
+    const moveCount = history.length;
+
+    if (moveCount < 12) {
+
+        phaseNameEl.textContent = "Beginning";
+
+        phaseAdviceEl.textContent =
+            "Develop your pieces, control the center, " +
+            "and get your king safe. Avoid moving the same " +
+            "piece repeatedly without a reason.";
+
+    } else if (moveCount < 30) {
+
+        phaseNameEl.textContent = "Middle";
+
+        phaseAdviceEl.textContent =
+            "Find a target. Look for weak pieces, weak pawns, " +
+            "open files, and especially opportunities to attack " +
+            "the enemy king with multiple pieces.";
+
+    } else {
+
+        phaseNameEl.textContent = "Finish";
+
+        phaseAdviceEl.textContent =
+            "Look for forcing moves: Checks → Captures → Threats. " +
+            "If attacking the king, calculate its escape squares " +
+            "and try to remove them.";
+
+    }
+}
+
+
+/* =========================
+   CAPTURE DISPLAY
+========================= */
+
+function updateCaptured() {
+
+    if (captured.length === 0) {
+        capturedEl.textContent = "—";
+        return;
+    }
+
+    capturedEl.textContent =
+        captured.map(p => symbols[p]).join(" ");
+}
+
+
+/* =========================================================
+   OPENING TRAINER
+========================================================= */
+
+const OPENINGS = [
+    {
+        name: "Italian Game",
+        moves: ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4"],
+        description:
+            "Fast, classical development aiming the bishop at f7. " +
+            "A great opening for learning piece activity and quick attacks."
+    },
+    {
+        name: "Ruy Lopez (Spanish Opening)",
+        moves: ["e2e4", "e7e5", "g1f3", "b8c6", "f1b5"],
+        description:
+            "One of the oldest, most respected openings. White pressures " +
+            "the knight defending e5 and plays for long-term central and " +
+            "queenside space."
+    },
+    {
+        name: "Scotch Game",
+        moves: ["e2e4", "e7e5", "g1f3", "b8c6", "d2d4"],
+        description:
+            "White challenges the center immediately with d4, opening " +
+            "lines quickly for tactical, open play."
+    },
+    {
+        name: "Queen's Gambit",
+        moves: ["d2d4", "d7d5", "c2c4"],
+        description:
+            "White offers a flank pawn to gain central control and open " +
+            "lines for the pieces. Can be Declined, Accepted, or met with " +
+            "the Slav."
+    },
+    {
+        name: "Queen's Gambit Declined",
+        moves: ["d2d4", "d7d5", "c2c4", "e7e6"],
+        description:
+            "Black supports d5 solidly instead of taking on c4, aiming " +
+            "for a stable, classical pawn structure."
+    },
+    {
+        name: "Slav Defense",
+        moves: ["d2d4", "d7d5", "c2c4", "c7c6"],
+        description:
+            "Black defends d5 with the c-pawn instead of e6, keeping the " +
+            "dark-squared bishop free to develop outside the pawn chain."
+    },
+    {
+        name: "King's Indian Defense",
+        moves: ["d2d4", "g8f6", "c2c4", "g7g6"],
+        description:
+            "Black allows White a big center early, planning to fianchetto " +
+            "the bishop and strike back later with ...e5 or ...c5."
+    },
+    {
+        name: "Nimzo-Indian Defense",
+        moves: ["d2d4", "g8f6", "c2c4", "e7e6", "b1c3", "f8b4"],
+        description:
+            "Black pins the knight on c3 immediately, fighting for the " +
+            "center with piece pressure instead of pawns."
+    },
+    {
+        name: "Sicilian Defense",
+        moves: ["e2e4", "c7c5"],
+        description:
+            "The most popular reply to 1.e4 at every level, creating " +
+            "immediate imbalance and fighting for the center asymmetrically."
+    },
+    {
+        name: "French Defense",
+        moves: ["e2e4", "e7e6"],
+        description:
+            "Black prepares ...d5 to challenge the center, accepting a " +
+            "slightly cramped position for a solid pawn structure."
+    },
+    {
+        name: "Caro-Kann Defense",
+        moves: ["e2e4", "c7c6"],
+        description:
+            "Similar idea to the French but keeps the light-squared " +
+            "bishop free before playing ...d5."
+    },
+    {
+        name: "Scandinavian Defense",
+        moves: ["e2e4", "d7d5"],
+        description:
+            "Black challenges the center immediately; after an early " +
+            "queen recapture on d5, Black develops quickly with early " +
+            "queen activity."
+    },
+    {
+        name: "English Opening",
+        moves: ["c2c4"],
+        description:
+            "A flexible flank opening that can transpose into many " +
+            "structures, controlling d5 without committing the center " +
+            "pawns yet."
+    },
+    {
+        name: "London System",
+        moves: ["d2d4", "d7d5", "g1f3", "g8f6", "c1f4"],
+        description:
+            "A simple, repeatable setup for White with the bishop " +
+            "developed early to f4 before the center is locked in. " +
+            "Popular for its low memorization needs."
+    }
+];
+
+VARIATIONS.forEach(v => OPENINGS.push({
+    family: v[0],
+    name: v[1],
+    moves: v[3].split(" ").slice(0, v[2]),
+    description: v[4],
+    line: v[3],
+    notes: v[5] || {}
+}));
+
+// Fills a <select> with every opening, grouped by family.
+function fillOpeningSelect(select, firstLabel) {
+    select.innerHTML = "";
+
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = firstLabel;
+    select.appendChild(first);
+
+    const groups = new Map();
+
+    OPENINGS.forEach((o, i) => {
+        const fam = o.family || "Main openings";
+
+        if (!groups.has(fam)) {
+            const g = document.createElement("optgroup");
+            g.label = fam;
+            groups.set(fam, g);
+            select.appendChild(g);
+        }
+
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = o.name;
+        groups.get(fam).appendChild(opt);
+    });
+}
+
+function initOpenings() {
+    fillOpeningSelect(document.getElementById("botOpeningSelect"), "Bot's own choice");
+    fillOpeningSelect(document.getElementById("openingSelect"), "-- Choose an opening --");
+    fillOpeningSelect(document.getElementById("guideSelect"), "-- Choose an opening to learn --");
+    document.getElementById("guideText").textContent = GUIDE_DEFAULT_TEXT;
+}
+
+function onOpeningSelect() {
+    const select = document.getElementById("openingSelect");
+    const descEl = document.getElementById("openingDesc");
+    const idx = select.value;
+
+    if (idx === "") {
+        descEl.textContent =
+            "Select an opening to see its idea and starting moves, " +
+            "then load it onto the board to practice from there.";
+        return;
+    }
+
+    const opening = OPENINGS[idx];
+    descEl.textContent = opening.name + ": " + opening.description;
+}
+
+function loadOpening() {
+    if (isOnline()) return;
+    const select = document.getElementById("openingSelect");
+    const idx = select.value;
+
+    if (idx === "") return;
+
+    const opening = OPENINGS[idx];
+
+    resetPosition();
+    suppressClock = true;
+
+    for (const uci of opening.moves) {
+        const from = squareToRC(uci.slice(0, 2));
+        const to = squareToRC(uci.slice(2, 4));
+
+        const candidates = allLegalMoves(turn, board, curState());
+        const match = candidates.find(m =>
+            m.from.r === from.r && m.from.c === from.c &&
+            m.to.r === to.r && m.to.c === to.c
+        );
+
+        if (match) {
+            commitMove(match);
+        }
+    }
+
+    suppressClock = false;
+    lastTick = performance.now();
+
+    render();
+    onOpeningSelect();
+    scheduleBotMoveIfNeeded();
+}
+
+
+
+/* =========================
+   PREMOVES
+   Only available against the bot, while it's the bot's turn.
+   Moves are queued and played automatically after the bot replies;
+   if one is no longer legal by then, the whole queue is dropped.
+========================= */
+
+// Board + castling rights as they'd be after all queued premoves.
+function projectedPosition() {
+    const b = cloneBoard(board);
+    let st = curState();
+
+    for (const pm of premoves) {
+        const before = cloneBoard(b);
+        applyMoveToBoard(b, pm);
+        st = nextState(st, before, pm);
+    }
+
+    return { b, st };
+}
+
+// Premove destinations ignore the opponent's pieces (they will have
+// moved by the time the premove is played), like chess.com / Lichess.
+function premoveTargets(r, c, proj) {
+    const mine = orientation;
+    const piece = proj.b[r][c];
+
+    const ghost = proj.b.map(row =>
+        row.map(p => (p !== "." && colorOf(p) !== mine) ? "." : p)
+    );
+
+    const moves = getPseudoMoves(
+        r, c, ghost, mine,
+        { castling: proj.st.castling, enPassant: null }
+    );
+
+    // Pawns may premove diagonally in case something lands there.
+    if (piece.toUpperCase() === "P") {
+        const dir = mine === "w" ? -1 : 1;
+        const promotionRow = mine === "w" ? 0 : 7;
+        const nr = r + dir;
+
+        for (const dc of [-1, 1]) {
+            const nc = c + dc;
+            if (!inside(nr, nc)) continue;
+            if (moves.some(m => m.to.r === nr && m.to.c === nc)) continue;
+
+            moves.push({
+                from: { r, c },
+                to: { r: nr, c: nc },
+                promotion: nr === promotionRow
+            });
+        }
+    }
+
+    return moves;
+}
+
+function premoveClick(r, c) {
+
+    const mine = orientation;
+    const proj = projectedPosition();
+    const piece = proj.b[r][c];
+
+    if (selected) {
+        const mv = legalMoves.find(m => m.to.r === r && m.to.c === c);
+
+        if (mv) {
+            premoves.push(mv.promotion ? { ...mv, promoteTo: "Q" } : mv);
+            selected = null;
+            legalMoves = [];
+            render();
+            return;
+        }
+
+        if (piece !== "." && colorOf(piece) === mine) {
+            selected = { r, c };
+            legalMoves = premoveTargets(r, c, proj);
+            render();
+            return;
+        }
+
+        selected = null;
+        legalMoves = [];
+        render();
+        return;
+    }
+
+    if (piece !== "." && colorOf(piece) === mine) {
+        selected = { r, c };
+        legalMoves = premoveTargets(r, c, proj);
+        render();
+        return;
+    }
+
+    // Clicking an empty square with nothing selected cancels premoves.
+    if (premoves.length) {
+        premoves = [];
+        render();
+    }
+}
+
+// Called right after the bot has moved.
+function executePremove() {
+
+    if (!premoves.length) return;
+
+    if (gameResult || isBotTurn() || isRemoteTurn()) {
+        premoves = [];
+        return;
+    }
+
+    const pm = premoves.shift();
+
+    selected = null;
+    legalMoves = [];
+
+    let legal = null;
+
+    if (colorOf(board[pm.from.r][pm.from.c]) === turn) {
+        legal = getLegalMoves(pm.from.r, pm.from.c, board, turn, curState())
+            .find(m => m.to.r === pm.to.r && m.to.c === pm.to.c);
+    }
+
+    if (!legal) {
+        premoves = [];
+        render();
+        return;
+    }
+
+    makeMove(legal.promotion ? { ...legal, promoteTo: pm.promoteTo || "Q" } : legal);
+}
+
+
+/* =========================
+   RIGHT-CLICK HIGHLIGHTS + ARROWS
+========================= */
+
+const MARK_COLORS = {
+    red:    { rgb: "235, 97, 80",  hex: "#eb6150" },
+    yellow: { rgb: "255, 170, 0",  hex: "#ffaa00" },
+    blue:   { rgb: "74, 144, 226", hex: "#4a90e2" },
+    green:  { rgb: "61, 154, 46",  hex: "#3d9a2e" },
+    guide:  { rgb: "164, 91, 212", hex: "#a45bd4" }
+};
+
+function arrowColorFor(color) {
+    return color === "plain" ? "yellow" : color;
+}
+
+function markGradient(name) {
+    const col = "rgba(" + MARK_COLORS[name].rgb + ", .8)";
+    return "linear-gradient(" + col + ", " + col + ")";
+}
+
+function markColorFromEvent(e) {
+    if (e.shiftKey) return "red";
+    if (e.ctrlKey || e.metaKey) return "blue";
+    if (e.altKey) return "green";
+    return "plain";   // arrows -> yellow, squares -> red
+}
+
+// Mouse position -> board square (null if outside the board)
+function squareFromEvent(e) {
+    const rect = boardEl.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) return null;
+
+    const j = Math.floor(x / rect.width * 8);
+    const i = Math.floor(y / rect.height * 8);
+
+    return {
+        r: orientation === "w" ? i : 7 - i,
+        c: orientation === "w" ? j : 7 - j
+    };
+}
+
+function sameSq(a, b) {
+    return a.r === b.r && a.c === b.c;
+}
+
+function toggleSquareMark(sq, color) {
+    const key = sq.r + "," + sq.c;
+
+    if (markSquares.get(key) === color) {
+        markSquares.delete(key);
+    } else {
+        markSquares.set(key, color);
+    }
+}
+
+function toggleArrow(from, to, color) {
+    const idx = markArrows.findIndex(a => sameSq(a.from, from) && sameSq(a.to, to));
+
+    if (idx >= 0) {
+        const same = markArrows[idx].color === color;
+        markArrows.splice(idx, 1);
+        if (same) return;
+    }
+
+    markArrows.push({ from: { r: from.r, c: from.c }, to: { r: to.r, c: to.c }, color });
+}
+
+// Update highlight tints on the existing squares (no full re-render,
+// so an in-progress click isn't interrupted) and redraw arrows.
+function refreshMarks() {
+    for (const el of boardEl.children) {
+        const color = markSquares.get(el.dataset.r + "," + el.dataset.c);
+
+        if (color) {
+            el.style.setProperty("--l3", markGradient(color));
+        } else {
+            el.style.removeProperty("--l3");
+        }
+    }
+
+    drawArrows();
+}
+
+function clearMarks() {
+    if (!markSquares.size && !markArrows.length) return;
+
+    markSquares.clear();
+    markArrows = [];
+    refreshMarks();
+}
+
+function visualCenter(sq) {
+    return {
+        x: (orientation === "w" ? sq.c : 7 - sq.c) + 0.5,
+        y: (orientation === "w" ? sq.r : 7 - sq.r) + 0.5
+    };
+}
+
+function arrowSvg(a) {
+
+    const p1 = visualCenter(a.from);
+    const p2 = visualCenter(a.to);
+
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+
+    const knight =
+        (Math.abs(dx) === 1 && Math.abs(dy) === 2) ||
+        (Math.abs(dx) === 2 && Math.abs(dy) === 1);
+
+    // Knight arrows bend: long leg first, then the short one.
+    const pts = [p1];
+    if (knight) {
+        pts.push(Math.abs(dy) === 2 ? { x: p1.x, y: p2.y } : { x: p2.x, y: p1.y });
+    }
+    pts.push(p2);
+
+    const prev = pts[pts.length - 2];
+    const tip = pts[pts.length - 1];
+    const len = Math.hypot(tip.x - prev.x, tip.y - prev.y);
+    const ux = (tip.x - prev.x) / len;
+    const uy = (tip.y - prev.y) / len;
+
+    const headLen = 0.42;
+    const headHalf = 0.22;
+    const base = { x: tip.x - ux * headLen, y: tip.y - uy * headLen };
+
+    const shaft = pts.slice(0, -1).concat([base])
+        .map(p => p.x.toFixed(3) + "," + p.y.toFixed(3)).join(" ");
+
+    const head = [
+        tip,
+        { x: base.x - uy * headHalf, y: base.y + ux * headHalf },
+        { x: base.x + uy * headHalf, y: base.y - ux * headHalf }
+    ].map(p => p.x.toFixed(3) + "," + p.y.toFixed(3)).join(" ");
+
+    const hex = MARK_COLORS[a.color].hex;
+
+    return '<g opacity=".8">' +
+        '<polyline points="' + shaft + '" fill="none" stroke="' + hex +
+        '" stroke-width="0.17" stroke-linejoin="miter" stroke-linecap="butt"/>' +
+        '<polygon points="' + head + '" fill="' + hex + '"/>' +
+        '</g>';
+}
+
+function drawArrows() {
+    const all = markArrows.slice();
+    if (guideArrow) all.push({ from: guideArrow.from, to: guideArrow.to, color: "guide" });
+    if (dragPreview) all.push(dragPreview);
+
+    arrowsEl.innerHTML = all.map(arrowSvg).join("");
+}
+
+boardEl.addEventListener("contextmenu", e => e.preventDefault());
+
+boardEl.addEventListener("mousedown", e => {
+
+    if (e.button === 2) {
+        const sq = squareFromEvent(e);
+        if (!sq) return;
+
+        rightStart = { r: sq.r, c: sq.c, color: markColorFromEvent(e) };
+        dragPreview = null;
+        e.preventDefault();
+
+    } else if (e.button === 0) {
+        clearMarks();
+    }
+});
+
+window.addEventListener("mousemove", e => {
+    if (!rightStart) return;
+
+    const sq = squareFromEvent(e);
+
+    dragPreview = (sq && !sameSq(sq, rightStart))
+        ? { from: rightStart, to: sq, color: arrowColorFor(rightStart.color) }
+        : null;
+
+    drawArrows();
+});
+
+window.addEventListener("mouseup", e => {
+    if (e.button !== 2 || !rightStart) return;
+
+    const start = rightStart;
+    const sq = squareFromEvent(e);
+
+    rightStart = null;
+    dragPreview = null;
+
+    if (sq) {
+        if (sameSq(sq, start)) {
+            toggleSquareMark(sq, start.color === "plain" ? "red" : start.color);
+        } else {
+            toggleArrow(start, sq, arrowColorFor(start.color));
+        }
+    }
+
+    refreshMarks();
+});
+
+window.addEventListener("blur", () => {
+    rightStart = null;
+    dragPreview = null;
+    drawArrows();
+});
+
+
+
+/* =========================
+   OPENING GUIDE
+   Pick an opening, defense or gambit and the app shows the next move
+   to play (purple arrow + text) for as long as the game stays in the
+   line. Against a bot, the bot is told to play along with the same
+   opening so the line actually happens on the board.
+========================= */
+
+let guide = null;        // { opening, lines } while a guide is running
+let guideArrow = null;   // { from, to } for the move being suggested
+
+// Openings that are played by White (everything else is a defense for Black).
+const WHITE_OPENING_RE = new RegExp(
+    "^(Italian|Scotch|Four Knights|Vienna|King's Gambit Accepted|Bishop's|Ponziani|" +
+    "English|R\u00e9ti|Bird|King's Indian Attack|Catalan|Trompowsky|Torre|Colle|London|" +
+    "Queen's Gambit$|Ruy Lopez \\(|Ruy Lopez: (Closed|Exchange)|Alien|Halloween|Jerome|" +
+    "Danish|Blackmar|Caro-Kann: (Advance|Exchange|Panov|Two Knights|Fantasy)|" +
+    "French: (Advance|Exchange|Tarrasch|King's Indian)|Sicilian: (Alapin|Closed|Smith|Rossolimo)|" +
+    "Pirc Defense: Austrian|King's Indian: (S\u00e4misch|Fianchetto|Four)|" +
+    "Gr\u00fcnfeld: (Exchange|Russian)|Nimzo-Indian: (Rubinstein|Classical|S\u00e4misch)|" +
+    "Queen's Indian Defense: Petrosian|Slav Defense: Exchange|QGD: Exchange)"
+);
+
+const GUIDE_DEFAULT_TEXT =
+    "Pick an opening, defense or gambit (like the Alien Gambit) and press " +
+    "Start Guide. I'll show you each move to play.";
+
+function guideSideFor(o) {
+    return WHITE_OPENING_RE.test(o.name) ? "w" : "b";
+}
+
+// Every known line that starts with the opening's defining moves.
+// The opening's own main line comes first.
+function guideLinesFor(o) {
+    const out = [];
+    const seen = new Set();
+
+    const add = line => {
+        const key = line.join(" ");
+        if (!seen.has(key)) {
+            seen.add(key);
+            out.push(line);
+        }
+    };
+
+    if (o.line) add(o.line.split(" "));
+
+    BOOK_LINES.forEach(l => {
+        if (o.moves.every((m, i) => l[i] === m)) add(l);
+    });
+
+    if (!out.length) add(o.moves.slice());
+
+    return out;
+}
+
+// "g1f3" -> { move, san } for the side to move now (null if not legal here)
+function guideMoveInfo(uci) {
+    const from = squareToRC(uci.slice(0, 2));
+    const to = squareToRC(uci.slice(2, 4));
+    const st = curState();
+
+    const move = allLegalMoves(turn, board, st).find(m =>
+        m.from.r === from.r && m.from.c === from.c &&
+        m.to.r === to.r && m.to.c === to.c
+    );
+
+    if (!move) return null;
+
+    const after = cloneBoard(board);
+    applyMoveToBoard(after, move);
+
+    return {
+        move,
+        san: notation(move, board, after, turn, st, nextState(st, board, move))
+    };
+}
+
+function onGuideSelect() {
+    if (guide) return;
+
+    const idx = document.getElementById("guideSelect").value;
+    const textEl = document.getElementById("guideText");
+
+    if (idx === "") {
+        textEl.textContent = GUIDE_DEFAULT_TEXT;
+        return;
+    }
+
+    const o = OPENINGS[idx];
+    const side = guideSideFor(o) === "w" ? "White" : "Black";
+
+    textEl.innerHTML = "";
+    const strong = document.createElement("strong");
+    strong.textContent = o.name;
+    textEl.appendChild(strong);
+    textEl.appendChild(document.createTextNode(
+        " \u2014 you'll play " + side + ". " + o.description
+    ));
+}
+
+function startGuide() {
+    if (isOnline()) return;
+    const idx = document.getElementById("guideSelect").value;
+
+    if (idx === "") {
+        document.getElementById("guideText").textContent =
+            "Choose an opening from the list first.";
+        return;
+    }
+
+    const o = OPENINGS[idx];
+    const side = guideSideFor(o);
+
+    guide = { opening: o, lines: guideLinesFor(o) };
+
+    // You play the side the opening belongs to.
+    orientation = side;
+    document.getElementById("colorSelect").value = side;
+
+    // Make the bot play along so the line really happens.
+    if (opponentType === "bot") {
+        botOpening = o.moves;
+        document.getElementById("botOpeningSelect").value = idx;
+    }
+
+    newGame();
+}
+
+function stopGuide() {
+    guide = null;
+    guideArrow = null;
+    document.getElementById("guideText").textContent = GUIDE_DEFAULT_TEXT;
+    drawArrows();
+}
+
+function setGuideHtml(parts) {
+    const el = document.getElementById("guideText");
+    el.innerHTML = "";
+
+    parts.forEach(p => {
+        if (p.strong) {
+            const s2 = document.createElement("strong");
+            s2.textContent = p.strong;
+            el.appendChild(s2);
+        } else if (p.note) {
+            const n = document.createElement("span");
+            n.className = "guide-note";
+            n.textContent = p.note;
+            el.appendChild(n);
+        } else {
+            el.appendChild(document.createTextNode(p.text));
+        }
+    });
+}
+
+// Called from render(): works out what the guide should say / show now.
+function updateGuide() {
+
+    guideArrow = null;
+
+    if (!guide) return;
+
+    const o = guide.opening;
+    const hist = history.map(h => h.uci);
+    const n = hist.length;
+
+    const live = guide.lines.filter(l =>
+        l.length >= n && hist.every((m, i) => l[i] === m)
+    );
+
+    const head = { strong: o.name + ". " };
+
+    if (gameResult) {
+        setGuideHtml([head, { text: "The game is over." }]);
+        return;
+    }
+
+    if (!live.length) {
+        setGuideHtml([
+            head,
+            { text: "The game has left the guided line. Keep playing with the ideas of the opening, " +
+                    "press Undo to go back, or Start Guide to try again." }
+        ]);
+        return;
+    }
+
+    // Distinct next moves, in line order (main line first).
+    const nexts = [];
+    live.forEach(l => {
+        if (l.length > n && !nexts.includes(l[n])) nexts.push(l[n]);
+    });
+
+    if (!nexts.length) {
+        setGuideHtml([
+            head,
+            { text: "You've reached the end of the guided line. From here, play on with the ideas: " +
+                    o.description }
+        ]);
+        return;
+    }
+
+    const infos = nexts.map(u => ({ uci: u, info: guideMoveInfo(u) })).filter(x => x.info);
+
+    if (!infos.length) {
+        setGuideHtml([head, { text: "The guided line doesn't fit this position." }]);
+        return;
+    }
+
+    if (turn !== orientation) {
+        const replies = infos.map(x => x.info.san).join(", ");
+        setGuideHtml([
+            head,
+            { text: "Waiting for your opponent. In this line they usually play " + replies + "." }
+        ]);
+        return;
+    }
+
+    const main = infos[0];
+
+    guideArrow = {
+        from: { r: main.info.move.from.r, c: main.info.move.from.c },
+        to: { r: main.info.move.to.r, c: main.info.move.to.c }
+    };
+
+    const parts = [
+        head,
+        { text: "Your move: " },
+        { strong: main.info.san }
+    ];
+
+    const note = o.notes && o.notes[main.uci];
+    if (note) parts.push({ note });
+
+    if (infos.length > 1) {
+        parts.push({
+            note: "Other book moves here: " +
+                  infos.slice(1).map(x => x.info.san).join(", ") + "."
+        });
+    }
+
+    setGuideHtml(parts);
+}
+
+
+/* =========================
+   ONLINE 1v1  (PeerJS / WebRTC)
+
+   How it works:
+   - The host registers a short room code with PeerJS's free matchmaking
+     server. The guest types the code, and the two browsers then open a
+     direct WebRTC data channel. After that, moves go straight from one
+     browser to the other.
+   - Only UCI moves travel over the wire ("e2e4", "e7e8q"). Both sides
+     run the full rules engine, and every incoming move is checked
+     against the legal-move generator, so a bad message can't cheat.
+   - The host is the authority for (re)syncing: a "sync" message carries
+     the complete move list, so reconnects and rematches are just syncs.
+========================= */
+
+const PEER_PREFIX = "pgchess-";
+// To add your own TURN server (for very strict networks), use e.g.
+//   { config: { iceServers: [ {urls: "stun:stun.l.google.com:19302"},
+//                             {urls: "turn:YOUR_HOST:3478", username: "u", credential: "p"} ] } }
+// Leaving this empty keeps PeerJS's built-in STUN/TURN defaults.
+const PEER_OPTIONS = {};
+
+const FLAG_GRACE_MS = 3000;     // wait this long before flagging the opponent
+const HEARTBEAT_MS = 3000;
+const STALE_MS = 10000;
+const JOIN_TIMEOUT_MS = 15000;
+const MAX_RECONNECTS = 30;
+const DRAW_AGREED = { text: "Draw — agreed", score: "1/2-1/2" };
+
+const online = {
+    peer: null,
+    conn: null,
+    role: null,              // null | "host" | "guest"
+    code: "",
+    connected: false,        // channel open AND game synced
+    everConnected: false,
+    rejected: false,
+    stale: false,
+    hostColor: "w",
+    guestToken: null,        // host side: identifies the guest across reconnects
+    myToken: null,           // guest side
+    lastSeen: 0,
+    rtt: null,
+    route: "",
+    hbTimer: null,
+    joinTimer: null,
+    reconnectTimer: null,
+    brokerTimer: null,
+    reconnectTries: 0,
+    drawMine: false,
+    drawTheirs: false,
+    rematchMine: false,
+    rematchTheirs: false,
+    status: "",
+    statusKind: "",
+    leaving: false
+};
+
+const onlineEls = {
+    box: document.getElementById("onlineBox"),
+    setup: document.getElementById("onlineSetup"),
+    lobby: document.getElementById("onlineLobby"),
+    code: document.getElementById("roomCode"),
+    status: document.getElementById("onlineStatus"),
+    info: document.getElementById("onlineInfo"),
+    actions: document.getElementById("onlineActions"),
+    drawPrompt: document.getElementById("drawPrompt"),
+    color: document.getElementById("onlineColor"),
+    join: document.getElementById("joinCode"),
+    btnResign: document.getElementById("btnResign"),
+    btnDraw: document.getElementById("btnDraw"),
+    btnRematch: document.getElementById("btnRematch"),
+    btnLeave: document.getElementById("btnLeave"),
+    colorSelect: document.getElementById("colorSelect"),
+    timeSelect: document.getElementById("timeSelect")
+};
+
+function isOnline() {
+    return opponentType === "online";
+}
+
+// The opponent is on the move (so our clicks become premoves).
+function isRemoteTurn() {
+    return isOnline() && online.connected && turn !== orientation;
+}
+
+function resetOnlineFlags() {
+    online.drawMine = false;
+    online.drawTheirs = false;
+    online.rematchMine = false;
+    online.rematchTheirs = false;
+}
+
+function setStatus(text, kind) {
+    online.status = text;
+    online.statusKind = kind || "";
+    updateOnlineUI();
+    updateStatus();
+}
+
+function sendMsg(obj) {
+    if (online.conn && online.conn.open) {
+        try {
+            online.conn.send(obj);
+            return true;
+        } catch (e) { /* connection died; the close handler deals with it */ }
+    }
+    return false;
+}
+
+function randomString(alphabet, n) {
+    const bytes = new Uint32Array(n);
+    (window.crypto || window.msCrypto).getRandomValues(bytes);
+    let out = "";
+    for (let i = 0; i < n; i++) out += alphabet[bytes[i] % alphabet.length];
+    return out;
+}
+
+// No 0/O/1/I so codes are easy to read out loud.
+function makeCode() {
+    return randomString("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 5);
+}
+
+function tokenFor(code) {
+    const key = "chess-online-token-" + code;
+    try {
+        const saved = sessionStorage.getItem(key);
+        if (saved) return saved;
+        const t = randomString("abcdef0123456789", 20);
+        sessionStorage.setItem(key, t);
+        return t;
+    } catch (e) {
+        return randomString("abcdef0123456789", 20);
+    }
+}
+
+function ensurePeerJS() {
+    if (typeof Peer !== "undefined") return true;
+    setStatus(
+        "Couldn't load the PeerJS library (needs internet access to a CDN). " +
+        "Check your network and reload the page.", "err");
+    return false;
+}
+
+function stopTimers() {
+    clearInterval(online.hbTimer);
+    clearTimeout(online.joinTimer);
+    clearTimeout(online.reconnectTimer);
+    clearTimeout(online.brokerTimer);
+    online.hbTimer = online.joinTimer = online.reconnectTimer = online.brokerTimer = null;
+}
+
+function teardownOnline() {
+    online.leaving = true;
+    stopTimers();
+
+    const conn = online.conn;
+    const peer = online.peer;
+
+    online.conn = null;
+    online.peer = null;
+
+    try { if (conn) conn.close(); } catch (e) {}
+    try { if (peer) peer.destroy(); } catch (e) {}
+
+    online.role = null;
+    online.code = "";
+    online.connected = false;
+    online.everConnected = false;
+    online.rejected = false;
+    online.stale = false;
+    online.guestToken = null;
+    online.myToken = null;
+    online.lastSeen = 0;
+    online.rtt = null;
+    online.route = "";
+    online.reconnectTries = 0;
+    online.status = "";
+    online.statusKind = "";
+    resetOnlineFlags();
+
+    online.leaving = false;
+}
+
+/* ---------- friendly errors ---------- */
+
+function peerError(err) {
+    const t = err && err.type;
+    clearTimeout(online.joinTimer);
+
+    if (t === "peer-unavailable") {
+        if (online.role === "guest" && online.everConnected &&
+            online.reconnectTries < MAX_RECONNECTS) {
+            setStatus("Can't find the host right now — retrying...", "warn");
+            scheduleReconnect();
+            return;
+        }
+        setStatus("Room not found. Check the code, and make sure the host still has the page open.", "err");
+        return;
+    }
+
+    if (t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed") {
+        setStatus("Can't reach the PeerJS matchmaking server. Your network (or a firewall) may be blocking it.", "err");
+        return;
+    }
+
+    if (t === "webrtc") {
+        setStatus("WebRTC error — your network may be blocking direct peer-to-peer connections.", "err");
+        return;
+    }
+
+    if (t === "browser-incompatible") {
+        setStatus("This browser doesn't support WebRTC.", "err");
+        return;
+    }
+
+    if (t === "unavailable-id") {
+        setStatus("That room code is already taken. Try creating a game again.", "err");
+        return;
+    }
+
+    setStatus("Connection problem" + (t ? " (" + t + ")" : "") + ".", "err");
+}
+
+/* ---------- HOST ---------- */
+
+function onlineCreate() {
+    if (!ensurePeerJS()) return;
+
+    teardownOnline();
+
+    const pick = onlineEls.color.value;
+    online.role = "host";
+    online.hostColor = pick === "r" ? (Math.random() < 0.5 ? "w" : "b") : pick;
+
+    orientation = online.hostColor;
+    onlineEls.colorSelect.value = orientation;
+    resetPosition();
+    render();
+
+    setStatus("Creating room...", "");
+    openHostPeer(0);
+}
+
+function openHostPeer(tries) {
+
+    const code = makeCode();
+    let peer;
+
+    try {
+        peer = new Peer(PEER_PREFIX + code, PEER_OPTIONS);
+    } catch (e) {
+        setStatus("Couldn't start PeerJS: " + e.message, "err");
+        return;
+    }
+
+    online.peer = peer;
+
+    // If the matchmaker never answers, say so instead of hanging forever.
+    online.brokerTimer = setTimeout(() => {
+        if (online.peer === peer && !online.code) {
+            setStatus("Still can't reach the PeerJS matchmaking server. Your network may be blocking it.", "err");
+        }
+    }, JOIN_TIMEOUT_MS);
+
+    peer.on("open", () => {
+        if (online.peer !== peer) return;
+        clearTimeout(online.brokerTimer);
+        online.code = code;
+        if (!online.connected) setStatus("Waiting for your opponent to join...", "");
+    });
+
+    peer.on("connection", conn => hostAccept(conn));
+
+    peer.on("disconnected", () => {
+        // Lost the matchmaker (existing game connections keep working).
+        // Re-register so the room code stays joinable.
+        setTimeout(() => {
+            if (online.peer === peer && !peer.destroyed) {
+                try { peer.reconnect(); } catch (e) {}
+            }
+        }, 2000);
+    });
+
+    peer.on("error", err => {
+        if (online.peer !== peer) return;
+
+        if (err && err.type === "unavailable-id" && tries < 5) {
+            try { peer.destroy(); } catch (e) {}
+            openHostPeer(tries + 1);
+            return;
+        }
+
+        peerError(err);
+    });
+}
+
+function hostAccept(conn) {
+
+    conn.on("data", d => {
+        if (!d || typeof d !== "object") return;
+        if (d.t === "hello") { hostHello(conn, d); return; }
+        if (conn === online.conn) onlineMessage(d);
+    });
+
+    conn.on("close", () => connClosed(conn));
+    conn.on("error", () => connClosed(conn));
+}
+
+function hostHello(conn, d) {
+
+    if (online.role !== "host") return;
+
+    const token = String(d.token || "");
+    const sameGuest = !!online.guestToken && token === online.guestToken;
+
+    const liveOther = !sameGuest && online.connected &&
+                      online.conn && online.conn.open;
+
+    const lockedMidGame = !sameGuest && !!online.guestToken &&
+                          history.length > 0 && !gameResult;
+
+    if (liveOther || lockedMidGame) {
+        try { conn.send({ t: "busy" }); } catch (e) {}
+        setTimeout(() => { try { conn.close(); } catch (e) {} }, 300);
+        return;
+    }
+
+    const old = online.conn;
+    online.conn = conn;
+    online.guestToken = token;
+
+    if (old && old !== conn) {
+        try { old.close(); } catch (e) {}
+    }
+
+    // A different person walked into a finished/unstarted room: fresh game.
+    if (!sameGuest && (history.length === 0 || gameResult)) {
+        resetPosition();
+    }
+
+    online.connected = true;
+    online.everConnected = true;
+    online.lastSeen = Date.now();
+
+    sendSync();
+    startHeartbeat();
+    setStatus("Opponent connected.", "ok");
+    render();
+
+    setTimeout(() => detectRoute(conn), 1500);
+}
+
+function sendSync() {
+    sendMsg({
+        t: "sync",
+        hostColor: online.hostColor,
+        time: onlineEls.timeSelect.value,
+        uci: history.map(h => h.uci),
+        clock: clockEnabled
+            ? { w: Math.round(clock.w), b: Math.round(clock.b) }
+            : null,
+        forced: forcedResult
+    });
+}
+
+/* ---------- GUEST ---------- */
+
+function onlineJoin() {
+    if (!ensurePeerJS()) return;
+
+    const code = String(onlineEls.join.value || "")
+        .toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+    if (code.length < 4) {
+        setStatus("Type the room code your friend gave you.", "err");
+        return;
+    }
+
+    teardownOnline();
+
+    online.role = "guest";
+    online.code = code;
+    online.myToken = tokenFor(code);
+
+    resetPosition();
+    render();
+    setStatus("Connecting to the room...", "");
+
+    let peer;
+    try {
+        peer = new Peer(undefined, PEER_OPTIONS);
+    } catch (e) {
+        setStatus("Couldn't start PeerJS: " + e.message, "err");
+        return;
+    }
+
+    online.peer = peer;
+
+    online.brokerTimer = setTimeout(() => {
+        if (online.peer === peer && !online.conn) {
+            setStatus("Can't reach the PeerJS matchmaking server. Your network may be blocking it.", "err");
+        }
+    }, JOIN_TIMEOUT_MS);
+
+    peer.on("open", () => {
+        if (online.peer !== peer) return;
+        clearTimeout(online.brokerTimer);
+        if (!online.connected) guestConnect();
+    });
+
+    peer.on("disconnected", () => {
+        setTimeout(() => {
+            if (online.peer === peer && !peer.destroyed) {
+                try { peer.reconnect(); } catch (e) {}
+            }
+        }, 2000);
+    });
+
+    peer.on("error", err => {
+        if (online.peer !== peer) return;
+        peerError(err);
+    });
+}
+
+function guestConnect() {
+
+    if (online.role !== "guest" || !online.peer || online.rejected) return;
+    if (online.conn && online.conn.open) return;
+
+    clearTimeout(online.joinTimer);
+
+    if (online.conn) {
+        const stale = online.conn;
+        online.conn = null;
+        try { stale.close(); } catch (e) {}
+    }
+
+    let conn;
+    try {
+        conn = online.peer.connect(PEER_PREFIX + online.code, { reliable: true });
+    } catch (e) {
+        peerError({ type: "network" });
+        return;
+    }
+
+    online.conn = conn;
+
+    online.joinTimer = setTimeout(() => {
+        if (online.conn === conn && !online.connected) {
+            online.conn = null;
+            try { conn.close(); } catch (e) {}
+            if (online.everConnected) {
+                scheduleReconnect();
+            } else {
+                setStatus("Couldn't reach the room. Check the code, or your network may be blocking direct connections.", "err");
+            }
+        }
+    }, JOIN_TIMEOUT_MS);
+
+    conn.on("open", () => {
+        if (online.conn !== conn) return;
+        online.lastSeen = Date.now();
+        try { conn.send({ t: "hello", token: online.myToken }); } catch (e) {}
+    });
+
+    conn.on("data", d => {
+        if (online.conn !== conn || !d || typeof d !== "object") return;
+        onlineMessage(d);
+    });
+
+    conn.on("close", () => connClosed(conn));
+    conn.on("error", () => connClosed(conn));
+}
+
+function scheduleReconnect() {
+
+    if (online.role !== "guest" || online.leaving || online.rejected) return;
+
+    clearTimeout(online.reconnectTimer);
+
+    if (online.reconnectTries >= MAX_RECONNECTS) {
+        setStatus("Couldn't reconnect. Press Leave game and join again with the room code.", "err");
+        return;
+    }
+
+    online.reconnectTries++;
+
+    online.reconnectTimer = setTimeout(() => {
+        if (online.connected || online.role !== "guest" || !online.peer) return;
+
+        if (online.peer.disconnected) {
+            try { online.peer.reconnect(); } catch (e) {}
+            scheduleReconnect();
+            return;
+        }
+
+        guestConnect();
+    }, 3000);
+}
+
+/* ---------- shared connection handling ---------- */
+
+function connClosed(conn) {
+
+    if (conn !== online.conn) return;
+
+    online.connected = false;
+    clearInterval(online.hbTimer);
+    online.hbTimer = null;
+    premoves = [];
+
+    if (online.leaving) return;
+
+    if (online.rejected) {
+        render();
+        return;
+    }
+
+    if (online.role === "host") {
+        setStatus("Opponent disconnected. Waiting for them to rejoin with the same code...", "warn");
+    } else if (gameResult) {
+        setStatus("Your opponent left.", "warn");
+    } else if (online.role === "guest") {
+        setStatus("Connection lost. Reconnecting...", "warn");
+        scheduleReconnect();
+    }
+
+    render();
+}
+
+function startHeartbeat() {
+    clearInterval(online.hbTimer);
+
+    online.hbTimer = setInterval(() => {
+        if (!online.conn || !online.conn.open) return;
+
+        sendMsg({ t: "ping", ts: Date.now() });
+
+        const stale = Date.now() - online.lastSeen > STALE_MS;
+        if (stale !== online.stale) {
+            online.stale = stale;
+            updateOnlineUI();
+        }
+    }, HEARTBEAT_MS);
+}
+
+// Works out whether the link is direct or relayed, to help diagnose networks.
+async function detectRoute(conn) {
+    try {
+        if (!conn || conn !== online.conn || !conn.peerConnection) return;
+
+        const stats = await conn.peerConnection.getStats();
+        const byId = {};
+        stats.forEach(s => { byId[s.id] = s; });
+
+        let pair = null;
+        stats.forEach(s => {
+            if (s.type === "transport" && s.selectedCandidatePairId) {
+                pair = byId[s.selectedCandidatePairId];
+            }
+        });
+        if (!pair) {
+            stats.forEach(s => {
+                if (s.type === "candidate-pair" && s.state === "succeeded" &&
+                    (s.selected || s.nominated)) pair = s;
+            });
+        }
+        if (!pair) return;
+
+        const l = byId[pair.localCandidateId];
+        const r = byId[pair.remoteCandidateId];
+        const types = [l && l.candidateType, r && r.candidateType];
+
+        if (types.includes("relay")) {
+            online.route = "relayed through a TURN server";
+        } else if (types.includes("srflx") || types.includes("prflx")) {
+            online.route = "direct peer-to-peer (via NAT)";
+        } else if (types.includes("host")) {
+            online.route = "direct peer-to-peer (same network)";
+        }
+
+        updateOnlineUI();
+    } catch (e) { /* diagnostics only */ }
+}
+
+/* ---------- messages ---------- */
+
+function onlineMessage(msg) {
+
+    online.lastSeen = Date.now();
+    if (online.stale) {
+        online.stale = false;
+        updateOnlineUI();
+    }
+
+    switch (msg.t) {
+
+        case "ping":
+            sendMsg({ t: "pong", ts: msg.ts });
+            break;
+
+        case "pong":
+            if (typeof msg.ts === "number") {
+                online.rtt = Date.now() - msg.ts;
+                updateOnlineUI();
+            }
+            break;
+
+        case "sync":
+            if (online.role === "guest") applySync(msg);
+            break;
+
+        case "need-sync":
+            if (online.role === "host") sendSync();
+            break;
+
+        case "busy":
+            online.rejected = true;
+            clearTimeout(online.joinTimer);
+            clearTimeout(online.reconnectTimer);
+            setStatus("This room already has two players.", "err");
+            break;
+
+        case "move":
+            onRemoteMove(msg);
+            break;
+
+        case "resign":
+            if (!gameResult) {
+                forcedResult = resignResult(opponent(orientation));
+                premoves = [];
+                render();
+            }
+            break;
+
+        case "flag":
+            if (!gameResult && clockEnabled) {
+                flagged = opponent(orientation);
+                clock[flagged] = 0;
+                premoves = [];
+                render();
+            }
+            break;
+
+        case "draw-offer":
+            if (gameResult) break;
+            online.drawTheirs = true;
+            if (online.drawMine) {
+                // both sides offered at once
+                sendMsg({ t: "draw-accept" });
+                forcedResult = DRAW_AGREED;
+                render();
+            } else {
+                updateOnlineUI();
+            }
+            break;
+
+        case "draw-accept":
+            if (online.drawMine && !gameResult) {
+                forcedResult = DRAW_AGREED;
+                render();
+            }
+            break;
+
+        case "draw-decline":
+            online.drawMine = false;
+            setStatus("Your opponent declined the draw.", "warn");
+            break;
+
+        case "rematch":
+            online.rematchTheirs = true;
+            if (online.role === "host" && online.rematchMine) {
+                hostStartRematch();
+            } else {
+                updateOnlineUI();
+            }
+            break;
+    }
+}
+
+// uci -> a legal move object for the side to move, or null.
+function moveFromUci(uci) {
+
+    if (typeof uci !== "string" || !/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) {
+        return null;
+    }
+
+    const from = squareToRC(uci.slice(0, 2));
+    const to = squareToRC(uci.slice(2, 4));
+
+    const m = allLegalMoves(turn, board, curState()).find(x =>
+        x.from.r === from.r && x.from.c === from.c &&
+        x.to.r === to.r && x.to.c === to.c
+    );
+
+    if (!m) return null;
+
+    return m.promotion
+        ? { ...m, promoteTo: (uci[4] || "q").toUpperCase() }
+        : m;
+}
+
+function onRemoteMove(msg) {
+
+    if (gameResult) return;
+
+    const ok = turn === opponent(orientation) && msg.ply === history.length;
+    const mv = ok ? moveFromUci(msg.uci) : null;
+
+    if (!mv) {
+        // Out of step (or an illegal move): get back in sync with the host.
+        if (online.role === "host") sendSync();
+        else sendMsg({ t: "need-sync" });
+        return;
+    }
+
+    makeMove(mv, {
+        remote: true,
+        ms: (clockEnabled && Number.isFinite(msg.ms)) ? msg.ms : undefined
+    });
+
+    executePremove();
+}
+
+function applySync(msg) {
+
+    if (msg.hostColor !== "w" && msg.hostColor !== "b") return;
+    if (!Array.isArray(msg.uci) || msg.uci.length > 800) return;
+
+    online.hostColor = msg.hostColor;
+    orientation = opponent(msg.hostColor);
+    onlineEls.colorSelect.value = orientation;
+
+    if ([...onlineEls.timeSelect.options].some(o => o.value === msg.time)) {
+        onlineEls.timeSelect.value = msg.time;
+    }
+
+    resetPosition();
+
+    suppressClock = true;
+    for (const u of msg.uci) {
+        const m = moveFromUci(u);
+        if (!m) break;
+        commitMove(m);
+    }
+    suppressClock = false;
+
+    if (clockEnabled && msg.clock &&
+        Number.isFinite(msg.clock.w) && Number.isFinite(msg.clock.b)) {
+        clock = { w: msg.clock.w, b: msg.clock.b };
+    }
+    lastTick = performance.now();
+
+    forcedResult = (msg.forced && typeof msg.forced.text === "string")
+        ? { text: String(msg.forced.text), score: String(msg.forced.score || "") }
+        : null;
+
+    clearTimeout(online.joinTimer);
+    clearTimeout(online.reconnectTimer);
+
+    const conn = online.conn;
+    online.connected = true;
+    online.everConnected = true;
+    online.reconnectTries = 0;
+    online.lastSeen = Date.now();
+
+    startHeartbeat();
+    setStatus("Connected.", "ok");
+    render();
+
+    setTimeout(() => detectRoute(conn), 1500);
+}
+
+/* ---------- player actions ---------- */
+
+function resignResult(color) {
+    return color === "w"
+        ? { text: "White resigned — Black wins", score: "0-1" }
+        : { text: "Black resigned — White wins", score: "1-0" };
+}
+
+function onlineResign() {
+    if (!online.connected || gameResult) return;
+    if (!confirm("Resign this game?")) return;
+
+    forcedResult = resignResult(orientation);
+    sendMsg({ t: "resign" });
+    premoves = [];
+    render();
+}
+
+function onlineOfferDraw() {
+    if (!online.connected || gameResult || online.drawMine) return;
+
+    if (online.drawTheirs) {
+        onlineAcceptDraw();
+        return;
+    }
+
+    online.drawMine = true;
+    sendMsg({ t: "draw-offer" });
+    updateOnlineUI();
+}
+
+function onlineAcceptDraw() {
+    if (!online.drawTheirs || gameResult) return;
+
+    sendMsg({ t: "draw-accept" });
+    forcedResult = DRAW_AGREED;
+    render();
+}
+
+function onlineDeclineDraw() {
+    online.drawTheirs = false;
+    sendMsg({ t: "draw-decline" });
+    updateOnlineUI();
+}
+
+function onlineRematch() {
+    if (!online.connected || !gameResult || online.rematchMine) return;
+
+    online.rematchMine = true;
+    sendMsg({ t: "rematch" });
+
+    if (online.role === "host" && online.rematchTheirs) {
+        hostStartRematch();
+    } else {
+        updateOnlineUI();
+    }
+}
+
+// Colors swap each rematch. Only the host starts it, then syncs the guest.
+function hostStartRematch() {
+    online.hostColor = opponent(online.hostColor);
+    orientation = online.hostColor;
+    onlineEls.colorSelect.value = orientation;
+
+    resetPosition();
+    sendSync();
+    render();
+}
+
+function onlineLeave() {
+    if (online.connected && !gameResult && history.length > 0 &&
+        !confirm("Leave the game? Your opponent will be disconnected.")) {
+        return;
+    }
+
+    teardownOnline();
+    resetPosition();
+    render();
+}
+
+function copyInvite(btn) {
+
+    if (!online.code) return;
+
+    const text = location.protocol === "file:"
+        ? online.code
+        : location.href.split("#")[0] + "#join=" + online.code;
+
+    const done = () => {
+        if (!btn) return;
+        const old = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = old; }, 1500);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, () => window.prompt("Copy this:", text));
+    } else {
+        window.prompt("Copy this:", text);
+    }
+}
+
+/* ---------- UI ---------- */
+
+function updateOnlineUI() {
+
+    const on = isOnline();
+
+    document.body.classList.toggle("online-mode", on);
+
+    // Color is decided by the room; time can only be chosen before move 1.
+    onlineEls.colorSelect.disabled = on;
+    onlineEls.timeSelect.disabled = on &&
+        (online.role === "guest" || (online.role === "host" && history.length > 0));
+
+    onlineEls.box.hidden = !on;
+    if (!on) return;
+
+    const inRoom = online.role !== null;
+
+    onlineEls.setup.hidden = inRoom;
+    onlineEls.lobby.hidden = !(online.role === "host" && !!online.code);
+    onlineEls.code.textContent = online.code;
+    onlineEls.btnLeave.hidden = !inRoom;
+    onlineEls.actions.hidden = !online.connected;
+
+    let text = online.status;
+    let kind = online.statusKind;
+    if (online.connected && online.stale) {
+        text = "No signal from your opponent for a while...";
+        kind = "warn";
+    } else if (online.connected && gameResult && online.rematchTheirs && !online.rematchMine) {
+        text = "Your opponent wants a rematch.";
+        kind = "ok";
+    } else if (online.connected && gameResult && online.rematchMine) {
+        text = "Rematch requested — waiting for your opponent...";
+        kind = "";
+    } else if (online.connected && online.drawMine && !gameResult) {
+        text = "Draw offered — waiting for a reply...";
+        kind = "";
+    }
+    onlineEls.status.textContent = text;
+    onlineEls.status.className = "online-status" + (kind ? " " + kind : "");
+
+    const bits = [];
+    if (online.connected && online.route) bits.push(online.route);
+    if (online.connected && online.rtt !== null) bits.push(online.rtt + " ms");
+    onlineEls.info.textContent = bits.join(" · ");
+
+    onlineEls.btnResign.hidden = !!gameResult;
+    onlineEls.btnDraw.hidden = !!gameResult;
+    onlineEls.btnDraw.disabled = online.drawMine;
+    onlineEls.btnDraw.textContent = online.drawMine ? "Draw offered" : "Offer draw";
+
+    onlineEls.btnRematch.hidden = !gameResult;
+    onlineEls.btnRematch.disabled = online.rematchMine;
+    onlineEls.btnRematch.textContent = online.rematchTheirs && !online.rematchMine
+        ? "Accept rematch" : "Rematch";
+
+    onlineEls.drawPrompt.hidden =
+        !(online.connected && online.drawTheirs && !online.drawMine && !gameResult);
+}
+
+
+/* =========================
+   START
+========================= */
+
+initWorker();
+initOpenings();
+newGame();
+
+// An invite link looks like  https://your-site/chess.html#join=ABCDE
+(function joinFromLink() {
+    const m = location.hash.match(/join=([A-Za-z0-9]{4,8})/);
+    if (!m) return;
+    document.getElementById("opponentSelect").value = "online";
+    onOpponentChange();
+    document.getElementById("joinCode").value = m[1].toUpperCase();
+    onlineJoin();
+})();
+
+// Timestamps (not interval counts) drive the clock, so it stays
+// accurate even if the browser throttles this timer in a background tab.
+setInterval(tickClock, 100);
+</script>
+
+</body>
+</html>
